@@ -44,6 +44,7 @@ const MainApp: React.FC = () => {
   const [activeTab, setActiveTab] = useState('Home');
   const [eventsPageKey, setEventsPageKey] = useState(0);
   const [isMiniCalendarOpen, setIsMiniCalendarOpen] = useState(false);
+  const [isTeamsViewOpen, setIsTeamsViewOpen] = useState(false);
   const [selectedGlobalDate, setSelectedGlobalDate] = useState<number | null>(null);
   const [exploringEventId, setExploringEventId] = useState<string | null>(null);
 
@@ -93,6 +94,7 @@ const MainApp: React.FC = () => {
 
     if (tab === 'Events' && activeTab !== 'Events') {
       setActiveTab('Events');
+      setSelectedGlobalDate(null); // Ensure fresh, unfiltered events feed on navigation
       setTimeout(() => {
         startFlow('homepage');
       }, 800);
@@ -377,6 +379,7 @@ const MainApp: React.FC = () => {
             onDetailsToggle={setIsDetailsOpen}
             onEventView={handleEventView}
             viewedEventIds={viewedEventIds}
+            onTeamsViewToggle={setIsTeamsViewOpen}
           />
         );
       default:
@@ -542,15 +545,18 @@ const MainApp: React.FC = () => {
         </div>
       </div>
 
-      <MiniFloatingCalendar 
-        isOpen={isMiniCalendarOpen} 
-        setIsOpen={setIsMiniCalendarOpen}
-        selectedDate={selectedGlobalDate}
-        setSelectedDate={setSelectedGlobalDate}
-        events={EVENTS_MOCK}
-        interestedIds={interestedIds}
-        registeredIds={registeredIds}
-      />
+      {/* Restrict calendar exclusively to the main Events page */}
+      {activeTab === 'Events' && !isTeamsViewOpen && (
+        <MiniFloatingCalendar 
+          isOpen={isMiniCalendarOpen} 
+          setIsOpen={setIsMiniCalendarOpen}
+          selectedDate={selectedGlobalDate}
+          setSelectedDate={setSelectedGlobalDate}
+          events={EVENTS_MOCK}
+          interestedIds={interestedIds}
+          registeredIds={registeredIds}
+        />
+      )}
       <TutorialOverlay />
     </div>
   );

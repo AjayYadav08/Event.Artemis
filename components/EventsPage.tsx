@@ -61,23 +61,24 @@ import {
 import { useTutorial } from './tutorial/TutorialContext';
 
 import { 
-  CampusEvent, Team, TeamMember, ChatMessage, JoinRequest,
+  CampusEvent, Team, TeamMember, ChatMessage, JoinRequest, ChatAttachment,
   TimelineItem, Prize, Sponsor, Judge, FAQ
 } from './events/types';
 
 export type { 
-  CampusEvent, Team, TeamMember, ChatMessage, JoinRequest,
+  CampusEvent, Team, TeamMember, ChatMessage, JoinRequest, ChatAttachment,
   TimelineItem, Prize, Sponsor, Judge, FAQ
 };
 import EventsHeader from './events/EventsHeader';
 import TeamPortal from './events/TeamPortal/TeamPortal';
 import EventsDiscovery from './events/Discovery/EventsDiscovery';
 import EventDetailsModal from './events/Modals/EventDetailsModal';
-import TeamPreviewModal from './events/Modals/TeamPreviewModal';
 import SharedModals from './events/Modals/SharedModals';
 import BackToTop from './events/BackToTop';
 import ImageWithFallback from './events/ImageWithFallback';
 import { parseDateTime } from './events/utils';
+import { useEventsData } from './events/useEventsData';
+import { EventsFeedSkeleton, EventsErrorScreen, EventsEmptyScreen } from './events/EventsLoadingScreen';
 
 // -- Mock Helpers & Constants --
 const TODAY_DAY = new Date().getDate();
@@ -831,6 +832,31 @@ export const MOCK_TEAMS_POOL: Team[] = [
   { id: 'p4', name: 'Timothee Chalamet', role: 'AI Engineer', avatar: 'https://i.pravatar.cc/150?img=18' }
 ];
 
+export const SAMPLE_JOIN_REQUESTS: Record<string, JoinRequest[]> = {
+  t1: [
+    {
+      id: 'req-sample-1',
+      teamId: 't1',
+      userId: 'u-marcus',
+      userName: 'Marcus Vance',
+      userAvatar: 'https://i.pravatar.cc/150?img=60',
+      message: 'Hey Ajay! I specialize in LangChain and vector retrieval. I would love to build the automated reviewer engine with you guys.',
+      timestamp: 'Today, 2:15 PM',
+      status: 'Pending'
+    },
+    {
+      id: 'req-sample-2',
+      teamId: 't1',
+      userId: 'u-ananya',
+      userName: 'Ananya Sharma',
+      userAvatar: 'https://i.pravatar.cc/150?img=47',
+      message: 'Hi team! Full-stack engineer with 3+ hackathon wins. Experienced in Next.js & FastAPI backend architectures.',
+      timestamp: 'Today, 3:40 PM',
+      status: 'Pending'
+    }
+  ]
+};
+
 
 interface EventsPageProps {
   selectedDate: number | null;
@@ -846,6 +872,7 @@ interface EventsPageProps {
   onDetailsToggle?: (isOpen: boolean) => void;
   onEventView?: (id: string) => void;
   viewedEventIds: Set<string>;
+  onTeamsViewToggle?: (isOpen: boolean) => void;
 }
 
 export const EventsPage: React.FC<EventsPageProps> = ({ 
@@ -861,8 +888,19 @@ export const EventsPage: React.FC<EventsPageProps> = ({
   onCloseExternalExplorer,
   onDetailsToggle,
   onEventView,
-  viewedEventIds
+  viewedEventIds,
+  onTeamsViewToggle
 }) => {
+  // Event data management with full async loading/error/empty lifecycle
+  const { 
+    events, 
+    isLoading, 
+    isError, 
+    isEmpty, 
+    error: loadError, 
+    refetch: refetchEvents 
+  } = useEventsData({ fallbackData: EVENTS_MOCK });
+
   const [activeFilter, setActiveFilter] = useState('All');
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [selectedStatuses, setSelectedStatuses] = useState<string[]>([]);
@@ -876,10 +914,14 @@ export const EventsPage: React.FC<EventsPageProps> = ({
   // Teams feature state
   const [showTeamsView, setShowTeamsView] = useState(false);
   const [teams, setTeams] = useState<Team[]>(MOCK_TEAMS);
-  const [activeTeam, setActiveTeam] = useState<Team | null>(null);
+  const [activeTeam, setActiveTeam] = useState<Team | null>(MOCK_TEAMS[0] || null);
   const [showTeamMembers, setShowTeamMembers] = useState(false);
   const [showCreateTeamForm, setShowCreateTeamForm] = useState(false);
   const [showJoinTeamView, setShowJoinTeamView] = useState(false);
+
+  useEffect(() => {
+    onTeamsViewToggle?.(showTeamsView);
+  }, [showTeamsView, onTeamsViewToggle]);
   const [discoverySearchQuery, setDiscoverySearchQuery] = useState('');
   const [newTeamData, setNewTeamData] = useState({
     name: '',
@@ -888,14 +930,33 @@ export const EventsPage: React.FC<EventsPageProps> = ({
     maxMembers: 4
   });
   const [chatInput, setChatInput] = useState('');
-  const [teamMessages, setTeamMessages] = useState<Record<string, ChatMessage[]>>(
-    MOCK_TEAMS.reduce((acc, t) => ({ ...acc, [t.id]: t.messages }), {} as Record<string, ChatMessage[]>)
-  );
+  const [teamMessages, setTeamMessages] = useState<Record<string, ChatMessage[]>>(() => {
+    try {
+      const saved = localStorage.getItem('artemis_team_messages_v3');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed && typeof parsed === 'object') return parsed;
+      }
+    } catch {}
+    return MOCK_TEAMS.reduce((acc, t) => ({ ...acc, [t.id]: t.messages }), {} as Record<string, ChatMessage[]>);
+  });
   const chatEndRef = useRef<HTMLDivElement>(null);
 
-  const sendMessage = useCallback((customText?: string, audioData?: { url?: string; duration?: number }) => {
+  useEffect(() => {
+    try {
+      localStorage.setItem('artemis_team_messages_v3', JSON.stringify(teamMessages));
+    } catch (e) {
+      console.warn('Could not persist messages', e);
+    }
+  }, [teamMessages]);
+
+  const sendMessage = useCallback((
+    customText?: string, 
+    audioData?: { url?: string; duration?: number },
+    attachmentData?: ChatAttachment
+  ) => {
     const textToSend = customText !== undefined ? customText : chatInput;
-    if (!textToSend.trim() || !activeTeam) return;
+    if ((!textToSend.trim() && !attachmentData) || !activeTeam) return;
     const newMsg: ChatMessage = {
       id: `msg_${Date.now()}`,
       senderId: 'me',
@@ -905,6 +966,7 @@ export const EventsPage: React.FC<EventsPageProps> = ({
       isMe: true,
       audioUrl: audioData?.url,
       audioDuration: audioData?.duration,
+      attachment: attachmentData
     };
     setTeamMessages(prev => ({ ...prev, [activeTeam.id]: [...(prev[activeTeam.id] || []), newMsg] }));
     setChatInput('');
@@ -928,7 +990,7 @@ export const EventsPage: React.FC<EventsPageProps> = ({
   const [ratingFeedback, setRatingFeedback] = useState('');
 
   // Join Request State
-  const [joinRequests, setJoinRequests] = useState<Record<string, JoinRequest[]>>({});
+  const [joinRequests, setJoinRequests] = useState<Record<string, JoinRequest[]>>(SAMPLE_JOIN_REQUESTS);
   const [previewingTeam, setPreviewingTeam] = useState<Team | null>(null);
   const [joinRequestMessage, setJoinRequestMessage] = useState('');
   const [isSendingRequest, setIsSendingRequest] = useState(false);
@@ -1057,13 +1119,14 @@ export const EventsPage: React.FC<EventsPageProps> = ({
 
   useEffect(() => {
     if (externalExploringId) {
-      const event = EVENTS_MOCK.find(e => e.id === externalExploringId);
+      const sourceEvents = events.length > 0 ? events : EVENTS_MOCK;
+      const event = sourceEvents.find(e => e.id === externalExploringId);
       if (event) {
         setExploringEvent(event);
         onEventView?.(event.id);
       }
     }
-  }, [externalExploringId, onEventView]);
+  }, [externalExploringId, events, onEventView]);
 
   useEffect(() => {
     onDetailsToggle?.(!!exploringEvent);
@@ -1104,11 +1167,12 @@ export const EventsPage: React.FC<EventsPageProps> = ({
   }, [exploringEvent, handleRegister]);
 
   const filteredData = useMemo(() => {
-    return EVENTS_MOCK.filter(e => {
+    const sourceEvents = (events && events.length > 0) ? events : EVENTS_MOCK;
+    return sourceEvents.filter(e => {
       const matchesCategory = selectedCategories.length === 0 
         ? (activeFilter === 'All' || e.category === activeFilter)
         : selectedCategories.includes(e.category);
-      const matchesSearch = e.title.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesSearch = searchQuery.trim() === '' ? true : e.title.toLowerCase().includes(searchQuery.toLowerCase());
       const matchesDate = selectedDate ? e.dayOfMonth === selectedDate : true;
       return matchesCategory && matchesSearch && matchesDate;
     }).sort((a, b) => {
@@ -1126,7 +1190,7 @@ export const EventsPage: React.FC<EventsPageProps> = ({
       if (!dateA || !dateB) return 0;
       return dateA.getTime() - dateB.getTime();
     });
-  }, [selectedCategories, activeFilter, searchQuery, selectedDate, registeredIds, interestedIds, notInterestedIds]);
+  }, [events, selectedCategories, activeFilter, searchQuery, selectedDate, registeredIds, interestedIds, notInterestedIds]);
 
   const categories = useMemo(() => {
     const nearDeadline = filteredData.filter(e => {
@@ -1156,13 +1220,13 @@ export const EventsPage: React.FC<EventsPageProps> = ({
 
 
   const handleCreateTeam = () => {
-    if (!newTeamData.name || !newTeamData.hackathon) return;
+    if (!newTeamData.name) return;
     const nt: Team = {
       id: `t_${Date.now()}`,
       name: newTeamData.name,
-      hackathon: newTeamData.hackathon,
+      hackathon: newTeamData.hackathon || 'Campus Project',
       description: newTeamData.description,
-      maxMembers: newTeamData.maxMembers,
+      maxMembers: newTeamData.maxMembers || 4,
       status: 'Open',
       members: [
         { id: 'me', name: 'Ajay Yadav', role: 'Team Lead', skills: ['Full-Stack'], avatar: 'https://i.pravatar.cc/150?img=12' }
@@ -1187,41 +1251,47 @@ export const EventsPage: React.FC<EventsPageProps> = ({
       onScroll={handleScroll}
       style={{ willChange: 'transform' }}
       className={`flex-1 flex flex-col transition-all ${
-        activeTeam ? 'overflow-hidden pb-2' : 'pb-32 overflow-y-auto'
-      } ${isCalendarOpen ? 'pr-[320px]' : ''} max-w-7xl mx-auto w-full h-full relative`}
+        showTeamsView ? 'overflow-hidden w-full h-full' : 'pb-32 overflow-y-auto max-w-7xl mx-auto w-full h-full'
+      } ${(!showTeamsView && isCalendarOpen) ? 'pr-[320px]' : ''} relative`}
     >
       {/* Background Decorative Accents */}
-      <div className="absolute top-0 left-1/4 w-[500px] h-[500px] bg-blue-50/30 rounded-full blur-[120px] pointer-events-none -z-10 animate-pulse" />
-      <div className="absolute top-1/2 right-0 w-[400px] h-[400px] bg-blue-50/20 rounded-full blur-[100px] pointer-events-none -z-10" />
-      
+      {!showTeamsView && (
+        <>
+          <div className="absolute top-0 left-1/4 w-[500px] h-[500px] bg-blue-50/30 rounded-full blur-[120px] pointer-events-none -z-10 animate-pulse" />
+          <div className="absolute top-1/2 right-0 w-[400px] h-[400px] bg-blue-50/20 rounded-full blur-[100px] pointer-events-none -z-10" />
+        </>
+      )}
 
+      {/* 1. Static Layout: EventsHeader is ALWAYS mounted, visible, and interactive */}
+      {!showTeamsView && (
+        <EventsHeader 
+          showTeamsView={showTeamsView}
+          setShowTeamsView={setShowTeamsView}
+          setActiveTeam={setActiveTeam}
+          setShowTeamMembers={setShowTeamMembers}
+          setShowCreateTeamForm={setShowCreateTeamForm}
+          setShowJoinTeamView={setShowJoinTeamView}
+          teams={teams}
+          showCreateTeamForm={showCreateTeamForm}
+          showJoinTeamView={showJoinTeamView}
+          searchQuery={searchQuery}
+          setSearchQuery={setSearchQuery}
+          selectedCategories={selectedCategories}
+          setSelectedCategories={setSelectedCategories}
+          selectedStatuses={selectedStatuses}
+          setSelectedStatuses={setSelectedStatuses}
+          activeFilter={activeFilter}
+          setActiveFilter={setActiveFilter}
+          activeNav={activeNav}
+          setActiveNav={setActiveNav}
+        />
+      )}
 
-      <EventsHeader 
-        showTeamsView={showTeamsView}
-        setShowTeamsView={setShowTeamsView}
-        setActiveTeam={setActiveTeam}
-        setShowTeamMembers={setShowTeamMembers}
-        setShowCreateTeamForm={setShowCreateTeamForm}
-        setShowJoinTeamView={setShowJoinTeamView}
-        teams={teams}
-        showCreateTeamForm={showCreateTeamForm}
-        showJoinTeamView={showJoinTeamView}
-        searchQuery={searchQuery}
-        setSearchQuery={setSearchQuery}
-        selectedCategories={selectedCategories}
-        setSelectedCategories={setSelectedCategories}
-        selectedStatuses={selectedStatuses}
-        setSelectedStatuses={setSelectedStatuses}
-        activeFilter={activeFilter}
-        setActiveFilter={setActiveFilter}
-        activeNav={activeNav}
-        setActiveNav={setActiveNav}
-      />
-
+      {/* 2. Team Portal View */}
       {showTeamsView && (
-        <div className={`px-4 mt-1 ${activeTeam ? 'flex-1 min-h-0 flex flex-col overflow-hidden pb-1' : ''}`}>
+        <div className="flex-1 min-h-0 flex flex-col w-full h-full overflow-hidden">
           <TeamPortal 
-            availableEvents={EVENTS_MOCK}
+            availableEvents={events.length > 0 ? events : EVENTS_MOCK}
             activeTeam={activeTeam}
             setActiveTeam={setActiveTeam}
             showCreateTeamForm={showCreateTeamForm}
@@ -1257,7 +1327,12 @@ export const EventsPage: React.FC<EventsPageProps> = ({
             teamSearchQuery={discoverySearchQuery}
             setTeamSearchQuery={setDiscoverySearchQuery}
             filteredTeamsPool={MOCK_TEAMS_POOL}
+            previewingTeam={previewingTeam}
             setPreviewingTeam={setPreviewingTeam}
+            joinRequestMessage={joinRequestMessage}
+            setJoinRequestMessage={setJoinRequestMessage}
+            handleSendJoinRequest={handleSendJoinRequest}
+            isSendingRequest={isSendingRequest}
             newTeamData={newTeamData}
             setNewTeamData={setNewTeamData}
             handleCreateTeam={handleCreateTeam}
@@ -1266,32 +1341,41 @@ export const EventsPage: React.FC<EventsPageProps> = ({
         </div>
       )}
 
+      {/* 3. API-Driven Data Feed Section: Displays Loading State ONLY Here */}
       {!showTeamsView && (
-        <EventsDiscovery 
-          showTeamsView={showTeamsView}
-          searchQuery={searchQuery}
-          setSearchQuery={setSearchQuery}
-          activeFilter={activeFilter}
-          setActiveFilter={setActiveFilter}
-          activeNav={activeNav}
-          setActiveNav={setActiveNav}
-          selectedStatuses={selectedStatuses}
-          onClearAllFilters={() => {
-            setSelectedCategories([]);
-            setSelectedStatuses([]);
-          }}
-          closingSoonEvents={categories.nearDeadline}
-          upcomingEvents={categories.upcoming}
-          pastEvents={categories.past}
-          interestedIds={interestedIds}
-          notInterestedIds={notInterestedIds}
-          registeredIds={registeredIds}
-          toggleInterested={toggleInterested}
-          markNotInterested={markNotInterested}
-          todayDay={TODAY_DAY}
-          now={now}
-          onExplore={handleExploreEvent}
-        />
+        isLoading ? (
+          <EventsFeedSkeleton />
+        ) : isError ? (
+          <EventsErrorScreen error={loadError} onRetry={refetchEvents} />
+        ) : isEmpty ? (
+          <EventsEmptyScreen onRefresh={refetchEvents} />
+        ) : (
+          <EventsDiscovery 
+            showTeamsView={showTeamsView}
+            searchQuery={searchQuery}
+            setSearchQuery={setSearchQuery}
+            activeFilter={activeFilter}
+            setActiveFilter={setActiveFilter}
+            activeNav={activeNav}
+            setActiveNav={setActiveNav}
+            selectedStatuses={selectedStatuses}
+            onClearAllFilters={() => {
+              setSelectedCategories([]);
+              setSelectedStatuses([]);
+            }}
+            closingSoonEvents={categories.nearDeadline}
+            upcomingEvents={categories.upcoming}
+            pastEvents={categories.past}
+            interestedIds={interestedIds}
+            notInterestedIds={notInterestedIds}
+            registeredIds={registeredIds}
+            toggleInterested={toggleInterested}
+            markNotInterested={markNotInterested}
+            todayDay={TODAY_DAY}
+            now={now}
+            onExplore={handleExploreEvent}
+          />
+        )
       )}
 
       {exploringEvent && (
@@ -1306,17 +1390,6 @@ export const EventsPage: React.FC<EventsPageProps> = ({
           toggleInterested={toggleInterested}
           isNotInterested={notInterestedIds.has(exploringEvent.id)}
           markNotInterested={markNotInterested}
-        />
-      )}
-
-      {previewingTeam && (
-        <TeamPreviewModal 
-          previewingTeam={previewingTeam}
-          setPreviewingTeam={setPreviewingTeam}
-          joinRequestMessage={joinRequestMessage}
-          setJoinRequestMessage={setJoinRequestMessage}
-          isSendingRequest={isSendingRequest}
-          handleSendJoinRequest={handleSendJoinRequest}
         />
       )}
 

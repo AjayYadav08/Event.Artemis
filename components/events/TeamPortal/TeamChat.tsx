@@ -1,13 +1,13 @@
 import React, { useRef, useEffect, useState, useMemo } from 'react';
-import { X, Check, Play, Pause, Mic } from 'lucide-react';
-import { Team, ChatMessage } from '../types';
+import { X, Check, Play, Pause, Mic, Download, ExternalLink, FileText, Eye } from 'lucide-react';
+import { Team, ChatMessage, ChatAttachment } from '../types';
 
 interface TeamChatProps {
   activeTeam: Team;
   teamMessages: Record<string, ChatMessage[]>;
   chatInput: string;
   setChatInput: (val: string | ((prev: string) => string)) => void;
-  sendMessage: (customText?: string, audioData?: { url?: string; duration?: number }) => void;
+  sendMessage: (customText?: string, audioData?: { url?: string; duration?: number }, attachmentData?: ChatAttachment) => void;
   chatEndRef?: React.RefObject<HTMLDivElement>;
 }
 
@@ -98,6 +98,25 @@ const POPULAR_EMOJIS = ['😀', '😂', '🔥', '🚀', '❤️', '👍', '🎉'
 
 // Waveform bar visual heights (normalized 0-100)
 const WAVEFORM_BARS = [35, 60, 85, 45, 95, 70, 40, 80, 100, 65, 40, 75, 90, 85, 55, 75, 60, 95, 80, 45, 70, 50, 35];
+
+// Participant name colors for subtle distinction in WhatsApp group style
+const PARTICIPANT_COLORS = [
+  'text-[#0070F3]',     // Artemis Blue
+  'text-emerald-600',   // Emerald
+  'text-violet-600',    // Violet
+  'text-amber-600',     // Amber
+  'text-rose-600',      // Rose
+  'text-cyan-600',      // Cyan
+  'text-indigo-600',    // Indigo
+];
+
+function getParticipantColor(senderName: string): string {
+  let hash = 0;
+  for (let i = 0; i < senderName.length; i++) {
+    hash = senderName.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  return PARTICIPANT_COLORS[Math.abs(hash) % PARTICIPANT_COLORS.length];
+}
 
 /**
  * Functional Voice Message Player for Sender and Recipient
@@ -286,6 +305,19 @@ const TeamChat: React.FC<TeamChatProps> = ({
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [recordingSeconds, setRecordingSeconds] = useState(0);
+  const [pendingAttachment, setPendingAttachment] = useState<ChatAttachment | null>(null);
+  const [previewMedia, setPreviewMedia] = useState<{ url: string; name: string; type: 'image' | 'pdf' } | null>(null);
+
+  // Close media preview on Escape key
+  useEffect(() => {
+    const handleKeyDownGlobal = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && previewMedia) {
+        setPreviewMedia(null);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDownGlobal);
+    return () => window.removeEventListener('keydown', handleKeyDownGlobal);
+  }, [previewMedia]);
 
   // Target scrolling strictly to the chat's message container without moving the overall page
   useEffect(() => {
@@ -345,11 +377,13 @@ const TeamChat: React.FC<TeamChatProps> = ({
     };
   }, [showEmojiPicker]);
 
-  const hasText = chatInput.trim().length > 0;
+  const hasContent = chatInput.trim().length > 0 || pendingAttachment !== null;
 
   const handleSend = () => {
-    if (!chatInput.trim()) return;
-    sendMessage(chatInput.trim());
+    if (!chatInput.trim() && !pendingAttachment) return;
+    sendMessage(chatInput.trim(), undefined, pendingAttachment || undefined);
+    setChatInput('');
+    setPendingAttachment(null);
     setShowEmojiPicker(false);
     if (textareaRef.current) {
       textareaRef.current.style.height = '24px';
@@ -360,7 +394,7 @@ const TeamChat: React.FC<TeamChatProps> = ({
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      if (hasText) {
+      if (hasContent) {
         handleSend();
       }
     }
@@ -369,10 +403,50 @@ const TeamChat: React.FC<TeamChatProps> = ({
   const handleFileAttach = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const fileText = `📎 ${file.name}`;
-    setChatInput(prev => (prev ? `${prev} ${fileText}` : fileText));
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = reader.result as string;
+      const att: ChatAttachment = {
+        id: `att_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+        name: file.name,
+        url: dataUrl,
+        size: file.size,
+        type: file.type || (file.name.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'application/octet-stream')
+      };
+      setPendingAttachment(att);
+      textareaRef.current?.focus();
+    };
+    reader.readAsDataURL(file);
     e.target.value = '';
-    textareaRef.current?.focus();
+  };
+
+  const handleOpenAttachment = (att: ChatAttachment) => {
+    const isImage = att.type.startsWith('image/') || /\.(png|jpe?g|gif|webp|svg)$/i.test(att.name);
+    const isPdf = att.type === 'application/pdf' || att.name.toLowerCase().endsWith('.pdf');
+
+    if (isImage) {
+      setPreviewMedia({ url: att.url, name: att.name, type: 'image' });
+      return;
+    }
+    if (isPdf) {
+      setPreviewMedia({ url: att.url, name: att.name, type: 'pdf' });
+      return;
+    }
+
+    // Direct download for any other file type
+    const a = document.createElement('a');
+    a.href = att.url;
+    a.download = att.name;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  };
+
+  const formatFileSize = (bytes: number = 0): string => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
 
   const handleEmojiSelect = (emoji: string) => {
@@ -447,32 +521,142 @@ const TeamChat: React.FC<TeamChatProps> = ({
 
   return (
     <div className="flex-1 flex flex-col min-h-0 bg-white">
-      {/* Messages Scroll Area */}
+      {/* Messages Scroll Area - WhatsApp Inspired Layout */}
       <div 
         ref={messagesContainerRef}
-        className="flex-1 overflow-y-auto p-4 space-y-3 no-scrollbar bg-gradient-to-b from-slate-50/50 to-white"
+        className="flex-1 overflow-y-auto px-6 py-4 space-y-1 no-scrollbar bg-[#F8FAFC]"
       >
-        {messages.map(msg => {
+        {messages.map((msg, idx) => {
           const isVoice = Boolean(msg.audioUrl || msg.text.startsWith('🎙️') || msg.text.includes('Voice message'));
+          const prevMsg = idx > 0 ? messages[idx - 1] : null;
+          const isFirstInGroup = !prevMsg || prevMsg.senderId !== msg.senderId;
 
           return (
-            <div key={msg.id} className={`flex ${msg.isMe ? 'justify-end' : 'justify-start'}`}>
-              <div className={`max-w-[80%] ${msg.isMe ? 'order-last' : ''}`}>
-                {!msg.isMe && (
-                  <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider ml-1 mb-0.5 block">{msg.senderName}</span>
-                )}
-                <div className={`px-3.5 py-2.5 rounded-2xl ${
+            <div 
+              key={msg.id} 
+              className={`flex ${msg.isMe ? 'justify-end' : 'justify-start'} ${isFirstInGroup ? 'mt-2.5 first:mt-0' : 'mt-0.5'}`}
+            >
+              <div 
+                className={`max-w-[78%] sm:max-w-[68%] relative px-3.5 py-2 text-sm shadow-2xs ${
                   msg.isMe
-                    ? 'bg-[#0070F3] text-white rounded-br-md shadow-md shadow-blue-200/50'
-                    : 'bg-white text-slate-700 rounded-bl-md shadow-sm border border-slate-200/70'
-                }`}>
-                  {isVoice ? (
+                    ? `bg-[#0070F3] text-white ${isFirstInGroup ? 'rounded-2xl rounded-tr-xs' : 'rounded-2xl'}`
+                    : `bg-white text-slate-800 border border-slate-200/90 ${isFirstInGroup ? 'rounded-2xl rounded-tl-xs' : 'rounded-2xl'}`
+                }`}
+              >
+                {/* Sender Name for received messages (first message in group only, colored) */}
+                {!msg.isMe && isFirstInGroup && (
+                  <div className={`text-[11.5px] font-bold ${getParticipantColor(msg.senderName)} mb-0.5 select-none`}>
+                    {msg.senderName}
+                  </div>
+                )}
+
+                {/* Message Body & In-Bubble Bottom-Right Timestamp */}
+                {isVoice ? (
+                  <div>
                     <VoiceMessagePlayer msg={msg} />
-                  ) : (
-                    <p className="text-sm font-medium leading-relaxed break-words whitespace-pre-wrap">{msg.text}</p>
-                  )}
-                </div>
-                <span className={`text-[9px] font-bold text-slate-400 mt-0.5 block ${msg.isMe ? 'text-right mr-1' : 'ml-1'}`}>{msg.timestamp}</span>
+                    <div className="flex justify-end items-center gap-1 mt-0.5">
+                      <span className={`text-[10px] font-medium ${msg.isMe ? 'text-blue-100' : 'text-slate-400'}`}>
+                        {msg.timestamp}
+                      </span>
+                      {msg.isMe && (
+                        <svg viewBox="0 0 16 11" className="w-3.5 h-2.5 text-blue-200 fill-current inline-block">
+                          <path d="M11.07 0.93a0.75 0.75 0 0 0-1.06 0L5.36 5.58 3.49 3.71a0.75 0.75 0 0 0-1.06 1.06l2.4 2.4a0.75 0.75 0 0 0 1.06 0l5.18-5.18a0.75 0.75 0 0 0 0-1.06zM14.07 0.93a0.75 0.75 0 0 0-1.06 0L8.36 5.58l0.53 0.53 4.65-4.65a0.75 0.75 0 0 0 0-1.06z" />
+                        </svg>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="leading-relaxed">
+                    {/* Render Real Attachment if present */}
+                    {msg.attachment && (
+                      <div className="mb-2">
+                        {msg.attachment.type.startsWith('image/') || /\.(png|jpe?g|gif|webp|svg)$/i.test(msg.attachment.name) ? (
+                          <div 
+                            onClick={() => setPreviewMedia({ url: msg.attachment!.url, name: msg.attachment!.name, type: 'image' })}
+                            className="cursor-pointer group relative overflow-hidden rounded-xl border border-black/10 shadow-2xs my-1 max-w-xs"
+                            title="Click to view full image"
+                          >
+                            <img 
+                              src={msg.attachment.url} 
+                              alt={msg.attachment.name} 
+                              className="w-full max-h-56 object-cover group-hover:scale-[1.02] transition-transform duration-200" 
+                            />
+                            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/25 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
+                              <span className="px-2.5 py-1 bg-black/75 text-white text-[11px] font-bold rounded-lg flex items-center gap-1.5 backdrop-blur-xs">
+                                <Eye className="w-3.5 h-3.5" />
+                                Click to preview
+                              </span>
+                            </div>
+                          </div>
+                        ) : msg.attachment.type === 'application/pdf' || msg.attachment.name.toLowerCase().endsWith('.pdf') ? (
+                          <div 
+                            onClick={() => handleOpenAttachment(msg.attachment!)}
+                            className={`p-2.5 rounded-xl border flex items-center justify-between gap-3 cursor-pointer transition-all select-none my-1 ${
+                              msg.isMe
+                                ? 'bg-blue-600/40 hover:bg-blue-600/60 border-blue-300/40 text-white'
+                                : 'bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-900'
+                            }`}
+                            title="Click to preview PDF"
+                          >
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <div className="w-8 h-8 rounded-lg bg-rose-500 text-white font-black text-[10px] flex items-center justify-center shrink-0 shadow-2xs">
+                                PDF
+                              </div>
+                              <div className="min-w-0">
+                                <p className="text-xs font-bold truncate">{msg.attachment.name}</p>
+                                <p className={`text-[10px] ${msg.isMe ? 'text-blue-100' : 'text-slate-400'}`}>
+                                  {formatFileSize(msg.attachment.size)} • Click to preview
+                                </p>
+                              </div>
+                            </div>
+                            <ExternalLink className="w-3.5 h-3.5 shrink-0 opacity-80" />
+                          </div>
+                        ) : (
+                          <div 
+                            onClick={() => handleOpenAttachment(msg.attachment!)}
+                            className={`p-2.5 rounded-xl border flex items-center justify-between gap-3 cursor-pointer transition-all select-none my-1 ${
+                              msg.isMe
+                                ? 'bg-blue-600/40 hover:bg-blue-600/60 border-blue-300/40 text-white'
+                                : 'bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-900'
+                            }`}
+                            title="Click to download file"
+                          >
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <div className="w-8 h-8 rounded-lg bg-blue-500 text-white font-bold text-xs flex items-center justify-center shrink-0 shadow-2xs">
+                                <FileText className="w-4 h-4" />
+                              </div>
+                              <div className="min-w-0">
+                                <p className="text-xs font-bold truncate">{msg.attachment.name}</p>
+                                <p className={`text-[10px] ${msg.isMe ? 'text-blue-100' : 'text-slate-400'}`}>
+                                  {formatFileSize(msg.attachment.size)} • Click to download
+                                </p>
+                              </div>
+                            </div>
+                            <Download className="w-3.5 h-3.5 shrink-0 opacity-80" />
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {msg.text && (
+                      <span className="text-[13.5px] font-normal break-words whitespace-pre-wrap select-text">
+                        {msg.text}
+                      </span>
+                    )}
+
+                    {/* WhatsApp-style floating bottom-right timestamp */}
+                    <span className={`text-[10px] font-medium ml-2.5 float-right mt-1.5 select-none inline-flex items-center gap-0.5 ${
+                      msg.isMe ? 'text-blue-100' : 'text-slate-400'
+                    }`}>
+                      <span>{msg.timestamp}</span>
+                      {msg.isMe && (
+                        <svg viewBox="0 0 16 11" className="w-3.5 h-2.5 text-blue-200 fill-current ml-0.5">
+                          <path d="M11.07 0.93a0.75 0.75 0 0 0-1.06 0L5.36 5.58 3.49 3.71a0.75 0.75 0 0 0-1.06 1.06l2.4 2.4a0.75 0.75 0 0 0 1.06 0l5.18-5.18a0.75 0.75 0 0 0 0-1.06zM14.07 0.93a0.75 0.75 0 0 0-1.06 0L8.36 5.58l0.53 0.53 4.65-4.65a0.75 0.75 0 0 0 0-1.06z" />
+                        </svg>
+                      )}
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
           );
@@ -480,8 +664,8 @@ const TeamChat: React.FC<TeamChatProps> = ({
         <div ref={chatEndRef} />
       </div>
 
-      {/* Clean White Theme Message Input Area */}
-      <div className="px-3.5 py-2.5 bg-white border-t border-slate-100 shrink-0 relative">
+      {/* Clean Message Input Area with exact px-6 alignment */}
+      <div className="px-6 pt-2 pb-2.5 sm:pb-3 bg-white border-t border-slate-200/90 shrink-0 relative rounded-br-2xl">
         {/* Hidden File Picker */}
         <input 
           type="file"
@@ -490,11 +674,38 @@ const TeamChat: React.FC<TeamChatProps> = ({
           className="hidden"
         />
 
+        {/* Pending / Staged Attachment Preview Chip */}
+        {pendingAttachment && (
+          <div className="mb-2 p-2 px-3 bg-slate-50 border border-slate-200/90 rounded-xl flex items-center justify-between gap-3 animate-in fade-in">
+            <div className="flex items-center gap-2.5 min-w-0">
+              {pendingAttachment.type.startsWith('image/') || /\.(png|jpe?g|gif|webp|svg)$/i.test(pendingAttachment.name) ? (
+                <img src={pendingAttachment.url} alt={pendingAttachment.name} className="w-8 h-8 rounded-lg object-cover border border-slate-200 shrink-0" />
+              ) : (
+                <div className="w-8 h-8 rounded-lg bg-blue-50 border border-blue-200 text-[#1D4ED8] flex items-center justify-center font-bold text-xs shrink-0">
+                  {pendingAttachment.name.toLowerCase().endsWith('.pdf') ? 'PDF' : 'DOC'}
+                </div>
+              )}
+              <div className="min-w-0">
+                <p className="text-xs font-bold text-slate-900 truncate">{pendingAttachment.name}</p>
+                <p className="text-[10px] text-slate-500 font-medium">{formatFileSize(pendingAttachment.size)}</p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setPendingAttachment(null)}
+              className="p-1 text-slate-400 hover:text-slate-700 rounded-lg hover:bg-slate-200/60 transition-colors cursor-pointer"
+              title="Remove attachment"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
+
         {/* Floating Emoji / Sticker Popover */}
         {showEmojiPicker && (
           <div 
             ref={emojiPickerRef}
-            className="absolute bottom-[66px] left-4 bg-white border border-slate-200 rounded-2xl p-3 shadow-xl z-30 w-72 backdrop-blur-md animate-in fade-in zoom-in-95 duration-150"
+            className="absolute bottom-[60px] left-6 bg-white border border-slate-200 rounded-2xl p-3 shadow-xl z-30 w-72 backdrop-blur-md animate-in fade-in zoom-in-95 duration-150"
           >
             <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-100 text-xs font-bold text-slate-700">
               <span>Stickers & Emojis</span>
@@ -521,14 +732,16 @@ const TeamChat: React.FC<TeamChatProps> = ({
           </div>
         )}
 
-        {/* Input Pill Container (Clean White Theme) */}
+        {/* Compact, Balanced Input Container with Independent Focus & Hover States */}
         <div 
-          className={`flex items-center bg-slate-50 hover:bg-slate-100/70 border border-slate-200 focus-within:border-[#0070F3] focus-within:ring-4 focus-within:ring-blue-100/60 focus-within:bg-white rounded-full px-2.5 py-1 min-h-[50px] transition-all relative ${
-            isFocused ? 'border-[#0070F3] ring-4 ring-blue-100/60 bg-white' : ''
+          className={`relative flex items-center rounded-2xl min-h-[44px] px-2.5 py-1 transition-colors duration-150 w-full ${
+            isFocused
+              ? 'bg-white hover:bg-slate-50/50 border-2 border-[#2563eb]'
+              : 'bg-slate-50/90 hover:bg-slate-100/80 border-2 border-slate-200/90 hover:border-slate-300'
           }`}
         >
           {isRecording ? (
-            /* Active Voice Recording UI inside Clean Light Pill */
+            /* Active Voice Recording UI */
             <div className="flex-1 flex items-center justify-between px-3 text-slate-800">
               <div className="flex items-center gap-2.5">
                 <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping" />
@@ -549,7 +762,7 @@ const TeamChat: React.FC<TeamChatProps> = ({
                 <button
                   type="button"
                   onClick={handleSendRecording}
-                  className="w-9 h-9 rounded-full bg-emerald-500 hover:bg-emerald-600 active:bg-emerald-700 flex items-center justify-center text-white transition-all shadow-md shadow-emerald-500/20 active:scale-95 cursor-pointer"
+                  className="w-8.5 h-8.5 rounded-full bg-emerald-500 hover:bg-emerald-600 active:bg-emerald-700 flex items-center justify-center text-white transition-all shadow-xs active:scale-95 cursor-pointer"
                   title="Send voice message"
                 >
                   <Check className="w-4 h-4 stroke-[3]" />
@@ -557,14 +770,14 @@ const TeamChat: React.FC<TeamChatProps> = ({
               </div>
             </div>
           ) : (
-            /* Standard Idle & Active Clean Light Pill */
+            /* Standard Idle & Active Controls */
             <>
               {/* Left Action 1: Paperclip */}
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
-                className="text-slate-400 hover:text-slate-700 active:text-[#0070F3] p-2 transition-all active:scale-90 shrink-0 select-none cursor-pointer"
-                title="Attach document or file"
+                className="text-slate-400 hover:text-slate-700 active:text-[#0070F3] p-1.5 transition-all active:scale-90 shrink-0 select-none cursor-pointer"
+                title="Attach file, image, or PDF"
                 aria-label="Attach file"
               >
                 <PaperclipIcon />
@@ -574,7 +787,7 @@ const TeamChat: React.FC<TeamChatProps> = ({
               <button
                 type="button"
                 onClick={() => setShowEmojiPicker(prev => !prev)}
-                className={`p-2 transition-all active:scale-90 shrink-0 select-none cursor-pointer ${
+                className={`p-1.5 transition-all active:scale-90 shrink-0 select-none cursor-pointer ${
                   showEmojiPicker ? 'text-[#0070F3]' : 'text-slate-400 hover:text-slate-700 active:text-[#0070F3]'
                 }`}
                 title="Add sticker or emoji"
@@ -584,13 +797,13 @@ const TeamChat: React.FC<TeamChatProps> = ({
               </button>
 
               {/* Center Input / Textarea */}
-              <div className="flex-1 flex items-center px-2 py-1 min-w-0">
+              <div className="flex-1 flex items-center px-2 py-0.5 min-w-0">
                 <textarea
                   id="tour-team-chat"
                   ref={textareaRef}
                   rows={1}
                   placeholder="Type a message..."
-                  className="w-full bg-transparent border-none outline-none text-slate-800 placeholder-slate-400 text-[15px] leading-5 font-normal resize-none overflow-y-auto no-scrollbar py-1"
+                  className="w-full bg-transparent border-none outline-none text-slate-800 placeholder-slate-400 text-sm leading-5 font-normal resize-none overflow-y-auto no-scrollbar py-1"
                   value={chatInput}
                   onChange={(e) => setChatInput(e.target.value)}
                   onKeyDown={handleKeyDown}
@@ -600,12 +813,12 @@ const TeamChat: React.FC<TeamChatProps> = ({
               </div>
 
               {/* Right Side: Idle (Mic) or Active (Blue Send Circle) */}
-              {hasText ? (
+              {hasContent ? (
                 /* Active State: Vibrant Send Circle */
                 <button
                   type="button"
                   onClick={handleSend}
-                  className="w-10 h-10 rounded-full bg-[#0070F3] hover:bg-[#1D4ED8] active:bg-[#1E40AF] flex items-center justify-center text-white transition-all duration-150 shadow-md shadow-blue-500/20 shrink-0 active:scale-95 my-0.5 mr-0.5 cursor-pointer"
+                  className="w-8.5 h-8.5 rounded-full bg-[#0070F3] hover:bg-[#1D4ED8] active:bg-[#1E40AF] flex items-center justify-center text-white transition-all duration-150 shadow-xs shrink-0 active:scale-95 cursor-pointer ml-1"
                   title="Send message"
                   aria-label="Send message"
                 >
@@ -616,7 +829,7 @@ const TeamChat: React.FC<TeamChatProps> = ({
                 <button
                   type="button"
                   onClick={startRecording}
-                  className="text-slate-400 hover:text-slate-700 active:text-[#0070F3] p-2 transition-all active:scale-90 shrink-0 select-none mr-1 cursor-pointer"
+                  className="text-slate-400 hover:text-slate-700 active:text-[#0070F3] p-1.5 transition-all active:scale-90 shrink-0 select-none cursor-pointer"
                   title="Record voice message"
                   aria-label="Voice message"
                 >
@@ -627,6 +840,55 @@ const TeamChat: React.FC<TeamChatProps> = ({
           )}
         </div>
       </div>
+
+      {/* Lightbox / Media Preview Modal */}
+      {previewMedia && (
+        <div className="fixed inset-0 z-[1200] flex items-center justify-center p-4 sm:p-6 bg-slate-900/70 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="relative bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] flex flex-col shadow-2xl overflow-hidden border border-slate-200">
+            {/* Modal Header */}
+            <div className="px-5 py-3.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <span className="text-xs font-bold text-slate-800 truncate">{previewMedia.name}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <a
+                  href={previewMedia.url}
+                  download={previewMedia.name}
+                  className="px-3 py-1.5 rounded-xl bg-white border border-slate-200 hover:border-slate-300 text-slate-700 hover:text-slate-900 text-xs font-bold inline-flex items-center gap-1.5 shadow-2xs transition-all"
+                  title="Download File"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Download</span>
+                </a>
+                <button
+                  onClick={() => setPreviewMedia(null)}
+                  className="p-1.5 rounded-xl hover:bg-slate-200/70 text-slate-500 hover:text-slate-800 transition-colors cursor-pointer"
+                  title="Close preview"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Body */}
+            <div className="flex-1 overflow-auto p-4 flex items-center justify-center bg-slate-900/5 min-h-[320px]">
+              {previewMedia.type === 'image' ? (
+                <img
+                  src={previewMedia.url}
+                  alt={previewMedia.name}
+                  className="max-w-full max-h-[75vh] object-contain rounded-lg shadow-sm"
+                />
+              ) : previewMedia.type === 'pdf' ? (
+                <iframe
+                  src={previewMedia.url}
+                  title={previewMedia.name}
+                  className="w-full h-[75vh] rounded-lg border border-slate-200 bg-white"
+                />
+              ) : null}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

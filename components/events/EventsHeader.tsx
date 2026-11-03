@@ -133,12 +133,12 @@ const EventsHeader: React.FC<EventsHeaderProps> = ({
 
 
   return (
-    <div className="sticky top-0 z-[100] px-8 pt-5 pb-4 bg-white/80 backdrop-blur-xl border-b border-slate-100 mb-4">
+    <div className="sticky top-0 z-[100] px-8 pt-5 pb-4 bg-white border-b border-slate-200 mb-4">
       {/* SINGLE ROW */}
       <div className="flex items-center justify-between gap-4 w-full">
         {showTeamsView ? (
           <>
-            {/* LEFT: Back to Events Feed button (Border matches Your Teams button) */}
+            {/* LEFT: Back to Events Feed button */}
             <button
               id="tour-back-to-events"
               onClick={() => {
@@ -148,7 +148,7 @@ const EventsHeader: React.FC<EventsHeaderProps> = ({
                 setShowCreateTeamForm(false);
                 setShowJoinTeamView(false);
               }}
-              className="h-10 w-24 rounded-lg border border-slate-200 hover:border-[#DDE0E5] bg-white hover:bg-[#F6F7F9] shadow-sm flex items-center justify-center gap-1.5 transition-all duration-150 text-slate-900 font-bold select-none cursor-pointer shrink-0 active:scale-[0.98]"
+              className="h-10 w-24 rounded-lg border border-slate-300 hover:border-slate-400 bg-white hover:bg-slate-50 shadow-sm flex items-center justify-center gap-1.5 transition-all duration-150 text-slate-900 font-bold select-none cursor-pointer shrink-0 active:scale-[0.98]"
             >
               <ChevronLeft className="w-4 h-4 stroke-[2.5] text-slate-900" />
               <span className="text-sm font-bold text-slate-900">Back</span>
@@ -159,7 +159,6 @@ const EventsHeader: React.FC<EventsHeaderProps> = ({
               <button
                 id="tour-teams-tab"
                 onClick={() => {
-                  setActiveTeam(null);
                   setShowTeamMembers(false);
                   setShowCreateTeamForm(false);
                   setShowJoinTeamView(false);
@@ -167,7 +166,7 @@ const EventsHeader: React.FC<EventsHeaderProps> = ({
                 className={`h-10 w-[150px] px-4 rounded-xl flex items-center justify-center gap-2 text-xs font-bold transition-all shadow-sm active:scale-[0.98] ${
                   !showCreateTeamForm && !showJoinTeamView
                     ? 'border border-[#BFDBFE] bg-[#EBF3FF] text-[#1D4ED8]'
-                    : 'border border-slate-200 hover:border-slate-300 bg-white hover:bg-slate-100 text-slate-700 hover:text-slate-900 active:bg-[#EBF3FF] active:border-[#BFDBFE] active:text-[#1D4ED8]'
+                    : 'border border-slate-300 hover:border-slate-400 bg-white hover:bg-slate-50 text-slate-800 hover:text-slate-900 active:bg-[#EBF3FF] active:border-[#BFDBFE] active:text-[#1D4ED8]'
                 }`}
               >
                 <span>Current Teams</span>
@@ -175,7 +174,7 @@ const EventsHeader: React.FC<EventsHeaderProps> = ({
                   className={`text-[10px] font-black px-1.5 py-0.5 rounded-md transition-all ${
                     !showCreateTeamForm && !showJoinTeamView
                       ? 'bg-[#DBEAFE] text-[#1D4ED8] border border-[#BFDBFE]'
-                      : 'bg-slate-100 text-slate-600 hover:bg-white hover:text-slate-900'
+                      : 'bg-slate-100 text-slate-700 hover:bg-white hover:text-slate-900'
                   }`}
                 >
                   {teams.length}
@@ -184,11 +183,11 @@ const EventsHeader: React.FC<EventsHeaderProps> = ({
 
               <button
                 id="tour-create-team-btn"
-                onClick={() => { setShowCreateTeamForm(true); setShowJoinTeamView(false); setActiveTeam(null); }}
+                onClick={() => { setShowCreateTeamForm(true); setShowJoinTeamView(false); }}
                 className={`h-10 w-[104px] px-3 rounded-xl flex items-center justify-center text-xs font-bold transition-all shadow-sm active:scale-[0.98] ${
                   showCreateTeamForm
                     ? 'border border-[#BFDBFE] bg-[#EBF3FF] text-[#1D4ED8]'
-                    : 'border border-slate-200 hover:border-slate-300 bg-white hover:bg-slate-100 text-slate-700 hover:text-slate-900 active:bg-[#EBF3FF] active:border-[#BFDBFE] active:text-[#1D4ED8]'
+                    : 'border border-slate-300 hover:border-slate-400 bg-white hover:bg-slate-50 text-slate-800 hover:text-slate-900 active:bg-[#EBF3FF] active:border-[#BFDBFE] active:text-[#1D4ED8]'
                 }`}
               >
                 <span>New Team</span>
@@ -196,11 +195,11 @@ const EventsHeader: React.FC<EventsHeaderProps> = ({
 
               <button
                 id="tour-team-search"
-                onClick={() => { setShowJoinTeamView(true); setShowCreateTeamForm(false); setActiveTeam(null); }}
+                onClick={() => { setShowJoinTeamView(true); setShowCreateTeamForm(false); }}
                 className={`h-10 w-[104px] px-3 rounded-xl flex items-center justify-center text-xs font-bold transition-all shadow-sm active:scale-[0.98] ${
                   showJoinTeamView
                     ? 'border border-[#BFDBFE] bg-[#EBF3FF] text-[#1D4ED8]'
-                    : 'border border-slate-200 hover:border-slate-300 bg-white hover:bg-slate-100 text-slate-700 hover:text-slate-900 active:bg-[#EBF3FF] active:border-[#BFDBFE] active:text-[#1D4ED8]'
+                    : 'border border-slate-300 hover:border-slate-400 bg-white hover:bg-slate-50 text-slate-800 hover:text-slate-900 active:bg-[#EBF3FF] active:border-[#BFDBFE] active:text-[#1D4ED8]'
                 }`}
               >
                 <span>Join Team</span>
@@ -209,12 +208,11 @@ const EventsHeader: React.FC<EventsHeaderProps> = ({
           </>
         ) : (
           <>
-            {/* 1. YOUR TEAMS BUTTON (Increased width, rectangular with subtle rounded corners, subtle default arrow & hover effect) */}
+            {/* 1. YOUR TEAMS BUTTON (Subtle border & font contrast improvements) */}
             <button
               id="tour-teams-tab"
               onClick={() => {
                 setShowTeamsView(true);
-                setActiveTeam(null);
                 setShowTeamMembers(false);
                 setShowCreateTeamForm(false);
                 setShowJoinTeamView(false);
@@ -228,20 +226,20 @@ const EventsHeader: React.FC<EventsHeaderProps> = ({
               onMouseOut={() => setIsYourTeamsHovered(false)}
               className={`group h-10 w-40 px-3.5 rounded-lg border shadow-sm flex items-center justify-between text-left transition-all duration-200 shrink-0 select-none active:scale-[0.98] ${
                 isYourTeamsHovered
-                  ? 'bg-[#EEEFF3] border-[#DDE0E5] text-[#15191D]'
-                  : 'bg-white border-slate-200 hover:bg-[#EEEFF3] hover:border-[#DDE0E5] text-slate-700 hover:text-[#15191D]'
+                  ? 'bg-[#EEEFF3] border-slate-400 text-slate-900'
+                  : 'bg-white border-slate-300 hover:bg-[#EEEFF3] hover:border-slate-400 text-slate-800 hover:text-slate-900'
               } active:bg-[#EBF3FF] active:border-[#BFDBFE] active:text-[#1D4ED8]`}
             >
               <span className={`teams-tab-text text-sm font-semibold transition-colors ${
-                isYourTeamsHovered ? 'text-[#15191D]' : 'text-slate-700 group-hover:text-[#15191D]'
+                isYourTeamsHovered ? 'text-slate-900' : 'text-slate-800 group-hover:text-slate-900'
               }`}>
                 Your Teams
               </span>
               <div
-                className={`teams-tab-arrow w-5 h-5 rounded-full bg-[#15191D] flex items-center justify-center text-white transition-all duration-200 shrink-0 shadow-xs ${
+                className={`teams-tab-arrow w-5 h-5 rounded-full bg-slate-900 flex items-center justify-center text-white transition-all duration-200 shrink-0 shadow-xs ${
                   isYourTeamsHovered
                     ? 'opacity-100 scale-100'
-                    : 'opacity-25 group-hover:opacity-100'
+                    : 'opacity-45 group-hover:opacity-100'
                 }`}
               >
                 <ArrowRight className="w-2.5 h-2.5 text-white stroke-[2.5]" />
@@ -253,13 +251,13 @@ const EventsHeader: React.FC<EventsHeaderProps> = ({
               id="tour-search-bar"
               className="relative w-72 md:w-80 lg:w-[380px] xl:w-[420px] h-10 group shrink-0 transition-all"
             >
-              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-blue-600 transition-colors pointer-events-none" />
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 group-focus-within:text-blue-600 transition-colors pointer-events-none" />
               <input
                 type="text"
                 placeholder="Search events, hackathons..."
-                className={`w-full h-full bg-white border-2 border-slate-200/90 hover:border-slate-300 focus:border-[#2563eb] rounded-xl pl-10 ${
+                className={`w-full h-full bg-white border-2 border-slate-300 hover:border-slate-400 focus:border-[#2563eb] rounded-xl pl-10 ${
                   searchQuery ? 'pr-[72px]' : 'pr-10'
-                } text-sm text-slate-800 placeholder:text-slate-400 outline-none transition-all duration-150`}
+                } text-sm font-medium text-slate-900 placeholder:text-slate-500 outline-none transition-all duration-150`}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
@@ -267,7 +265,7 @@ const EventsHeader: React.FC<EventsHeaderProps> = ({
                 <button
                   type="button"
                   onClick={() => setSearchQuery('')}
-                  className="absolute right-10 top-1/2 -translate-y-1/2 p-1 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+                  className="absolute right-10 top-1/2 -translate-y-1/2 p-1 rounded-full text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-colors"
                   aria-label="Clear search"
                 >
                   <X className="w-3.5 h-3.5" />
@@ -286,7 +284,7 @@ const EventsHeader: React.FC<EventsHeaderProps> = ({
                       ? 'text-blue-600 bg-blue-50'
                       : hasActiveCategoryFilter
                         ? 'text-blue-600 hover:bg-blue-50/70'
-                        : 'text-slate-400 hover:text-slate-700 hover:bg-slate-100'
+                        : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100'
                   }`}
                 >
                   <SlidersHorizontal className="w-4 h-4" />
@@ -297,8 +295,8 @@ const EventsHeader: React.FC<EventsHeaderProps> = ({
 
                 {/* Category Dropdown Menu Card (Preserved interface) */}
                 {isCategoryOpen && (
-                  <div className="absolute top-full mt-2.5 right-0 z-50 w-72 bg-white rounded-2xl shadow-xl shadow-slate-900/10 border border-slate-100 p-5 animate-in fade-in zoom-in-95 duration-150">
-                    <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4 px-1">
+                  <div className="absolute top-full mt-2.5 right-0 z-50 w-72 bg-white rounded-2xl shadow-xl shadow-slate-900/10 border border-slate-200 p-5 animate-in fade-in zoom-in-95 duration-150">
+                    <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-4 px-1">
                       CATEGORY
                     </div>
 
@@ -311,7 +309,7 @@ const EventsHeader: React.FC<EventsHeaderProps> = ({
                             onClick={() => togglePendingCategory(opt.id)}
                             className="flex items-center justify-between py-1 px-1 cursor-pointer select-none group"
                           >
-                            <span className="text-sm font-medium text-slate-800 group-hover:text-blue-600 transition-colors">
+                            <span className="text-sm font-medium text-slate-900 group-hover:text-blue-600 transition-colors">
                               {opt.label}
                             </span>
                             <div
@@ -328,13 +326,13 @@ const EventsHeader: React.FC<EventsHeaderProps> = ({
                       })}
                     </div>
 
-                    <div className="border-t border-slate-100 my-4" />
+                    <div className="border-t border-slate-200 my-4" />
 
                     <div className="flex items-center justify-between pt-1">
                       <button
                         type="button"
                         onClick={handleClearCategory}
-                        className="text-sm font-semibold text-slate-700 hover:bg-slate-100 px-3 py-1.5 rounded-xl transition-colors"
+                        className="text-sm font-semibold text-slate-800 hover:bg-slate-100 px-3 py-1.5 rounded-xl transition-colors"
                       >
                         Clear All
                       </button>
@@ -351,13 +349,13 @@ const EventsHeader: React.FC<EventsHeaderProps> = ({
               </div>
             </div>
 
-            {/* 4. NAVIGATION SHORTCUT BUTTONS (Bookmark-style from reference image) */}
+            {/* 4. NAVIGATION SHORTCUT BUTTONS (Closing Soon, Upcoming, Past Due) */}
             <div className="flex items-center gap-2.5 shrink-0">
               <button
                 id="tour-closing"
                 type="button"
                 onClick={() => scrollToSection('section-closing')}
-                className="h-10 px-4 rounded-full border border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-100 text-slate-700 hover:text-slate-900 active:bg-[#EBF3FF] active:border-[#BFDBFE] active:text-[#1D4ED8] text-sm font-semibold transition-all select-none active:scale-[0.98] shrink-0"
+                className="h-10 px-4 rounded-full border border-slate-300 bg-white hover:border-slate-400 hover:bg-slate-50 text-slate-800 hover:text-slate-900 active:bg-[#EBF3FF] active:border-[#BFDBFE] active:text-[#1D4ED8] text-sm font-semibold transition-all select-none active:scale-[0.98] shrink-0"
               >
                 Closing Soon
               </button>
@@ -366,7 +364,7 @@ const EventsHeader: React.FC<EventsHeaderProps> = ({
                 id="tour-upcoming"
                 type="button"
                 onClick={() => scrollToSection('section-upcoming')}
-                className="h-10 px-4 rounded-full border border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-100 text-slate-700 hover:text-slate-900 active:bg-[#EBF3FF] active:border-[#BFDBFE] active:text-[#1D4ED8] text-sm font-semibold transition-all select-none active:scale-[0.98] shrink-0"
+                className="h-10 px-4 rounded-full border border-slate-300 bg-white hover:border-slate-400 hover:bg-slate-50 text-slate-800 hover:text-slate-900 active:bg-[#EBF3FF] active:border-[#BFDBFE] active:text-[#1D4ED8] text-sm font-semibold transition-all select-none active:scale-[0.98] shrink-0"
               >
                 Upcoming
               </button>
@@ -375,7 +373,7 @@ const EventsHeader: React.FC<EventsHeaderProps> = ({
                 id="tour-past"
                 type="button"
                 onClick={() => scrollToSection('section-past')}
-                className="h-10 px-4 rounded-full border border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-100 text-slate-700 hover:text-slate-900 active:bg-[#EBF3FF] active:border-[#BFDBFE] active:text-[#1D4ED8] text-sm font-semibold transition-all select-none active:scale-[0.98] shrink-0"
+                className="h-10 px-4 rounded-full border border-slate-300 bg-white hover:border-slate-400 hover:bg-slate-50 text-slate-800 hover:text-slate-900 active:bg-[#EBF3FF] active:border-[#BFDBFE] active:text-[#1D4ED8] text-sm font-semibold transition-all select-none active:scale-[0.98] shrink-0"
               >
                 Past Due
               </button>

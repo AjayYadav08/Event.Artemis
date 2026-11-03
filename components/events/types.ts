@@ -85,6 +85,14 @@ export interface TeamMember {
   avatar: string;
 }
 
+export interface ChatAttachment {
+  id: string;
+  name: string;
+  url: string;
+  size: number;
+  type: string;
+}
+
 export interface ChatMessage {
   id: string;
   senderId: string;
@@ -94,6 +102,7 @@ export interface ChatMessage {
   isMe: boolean;
   audioUrl?: string;
   audioDuration?: number;
+  attachment?: ChatAttachment;
 }
 
 export interface Team {

@@ -93,6 +93,58 @@
       transform: scale(1);
       transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
     }
+
+    /* Subtle, Theme-Matching Loading Shimmer Animations */
+    @keyframes shimmer-sweep {
+      0% {
+        background-position: -200% 0;
+      }
+      100% {
+        background-position: 200% 0;
+      }
+    }
+
+    .shimmer-animated {
+      background: linear-gradient(
+        90deg,
+        #f1f5f9 0%,
+        #e2e8f0 45%,
+        #cbd5e1 50%,
+        #e2e8f0 55%,
+        #f1f5f9 100%
+      );
+      background-size: 200% 100%;
+      animation: shimmer-sweep 2.2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    }
+
+    .shimmer-card {
+      background: linear-gradient(
+        90deg,
+        #ffffff 0%,
+        #f8fafc 40%,
+        #f1f5f9 50%,
+        #f8fafc 60%,
+        #ffffff 100%
+      );
+      background-size: 200% 100%;
+      animation: shimmer-sweep 2.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    }
+
+    @keyframes shimmer-bar {
+      0% {
+        transform: translateX(-100%);
+      }
+      50% {
+        transform: translateX(0%);
+      }
+      100% {
+        transform: translateX(100%);
+      }
+    }
+
+    .shimmer-progress-bar {
+      animation: shimmer-bar 1.6s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    }
   </style>
 
 </head>
