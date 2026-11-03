@@ -521,10 +521,10 @@ const TeamChat: React.FC<TeamChatProps> = ({
 
   return (
     <div className="flex-1 flex flex-col min-h-0 bg-white">
-      {/* Messages Scroll Area - WhatsApp Inspired Layout */}
+      {/* Messages Scroll Area - Option 5: Blueprint Tech Matrix */}
       <div 
         ref={messagesContainerRef}
-        className="flex-1 overflow-y-auto px-6 py-4 space-y-1 no-scrollbar bg-[#F8FAFC]"
+        className="flex-1 overflow-y-auto px-6 py-4 space-y-1 no-scrollbar bg-[#F8FAFC] bg-blueprint-grid"
       >
         {messages.map((msg, idx) => {
           const isVoice = Boolean(msg.audioUrl || msg.text.startsWith('🎙️') || msg.text.includes('Voice message'));

@@ -1,5 +1,5 @@
-import React, { useState, useMemo } from 'react';
-import { UserPlus, X, Check, Search, Send, CheckCircle2, Clock, Users } from 'lucide-react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { UserPlus, X, Check, Search, Send, CheckCircle2, Clock, Users, Target } from 'lucide-react';
 import { Team, JoinRequest } from '../types';
 
 export interface CandidateUser {
@@ -29,32 +29,135 @@ export interface SentInvitation {
   userRole: string;
   message: string;
   sentAt: string;
-  status: 'Pending' | 'Accepted' | 'Declined';
+  status: 'Sent' | 'Accepted' | 'Rejected';
 }
+
+export const DEFAULT_SENT_INVITES: Record<string, SentInvitation[]> = {
+  't1': [
+    {
+      id: 'inv-1',
+      userId: 'p1',
+      userName: 'Zoe Kravitz',
+      userAvatar: 'https://i.pravatar.cc/150?img=32',
+      userRole: 'Full-Stack Developer',
+      message: "Hey Zoe! We'd love for you to join Neural Knights to work on React & FastAPI integrations.",
+      sentAt: 'Yesterday, 04:30 PM',
+      status: 'Accepted'
+    },
+    {
+      id: 'inv-2',
+      userId: 'p2',
+      userName: 'Robert Pattinson',
+      userAvatar: 'https://i.pravatar.cc/150?img=11',
+      userRole: 'DevOps & Cloud Engineer',
+      message: "Hey Robert! We need someone strong with Docker & Kubernetes for deployment.",
+      sentAt: 'Yesterday, 06:15 PM',
+      status: 'Rejected'
+    },
+    {
+      id: 'inv-3',
+      userId: 'p3',
+      userName: 'Lily Rose',
+      userAvatar: 'https://i.pravatar.cc/150?img=25',
+      userRole: 'UI/UX Designer',
+      message: "Hey Lily! We saw your design portfolio and would love to build our frontend together.",
+      sentAt: 'Today, 10:15 AM',
+      status: 'Sent'
+    }
+  ],
+  't2': [
+    {
+      id: 'inv-4',
+      userId: 'u1',
+      userName: 'Mike Ross',
+      userAvatar: 'https://i.pravatar.cc/150?img=33',
+      userRole: 'High-Perf Systems Dev',
+      message: "Hey Mike! Join us to build our low-latency arbitrage engine.",
+      sentAt: 'Yesterday, 02:20 PM',
+      status: 'Accepted'
+    },
+    {
+      id: 'inv-5',
+      userId: 'm4',
+      userName: 'Alice Smith',
+      userAvatar: 'https://i.pravatar.cc/150?img=23',
+      userRole: 'Security Analyst',
+      message: "Hey Alice! We'd love your assistance with exchange API security.",
+      sentAt: 'Today, 11:30 AM',
+      status: 'Sent'
+    }
+  ]
+};
 
 interface TeamRequestsProps {
   activeTeam: Team;
   joinRequests: Record<string, JoinRequest[]>;
   handleAcceptRequest: (request: JoinRequest) => void;
   handleRejectRequest: (request: JoinRequest) => void;
+  setTeams?: React.Dispatch<React.SetStateAction<Team[]>>;
 }
 
 const TeamRequests: React.FC<TeamRequestsProps> = ({
   activeTeam,
   joinRequests,
   handleAcceptRequest,
-  handleRejectRequest
+  handleRejectRequest,
+  setTeams
 }) => {
   const currentRequests = joinRequests[activeTeam.id] || [];
   const pendingRequests = currentRequests.filter(r => r.status === 'Pending');
-  const historyRequests = currentRequests.filter(r => r.status !== 'Pending');
+
+  // Team expectations state
+  const initialExpectationsText = useMemo(() => {
+    if (activeTeam.expectations && activeTeam.expectations.length > 0) {
+      return activeTeam.expectations.join('\n');
+    }
+    return '';
+  }, [activeTeam]);
+
+  const [expectationsMessage, setExpectationsMessage] = useState(initialExpectationsText);
+  const [isExpectationsDirty, setIsExpectationsDirty] = useState(false);
+  const [isExpectationsSaved, setIsExpectationsSaved] = useState(false);
+
+  useEffect(() => {
+    setExpectationsMessage(initialExpectationsText);
+    setIsExpectationsDirty(false);
+    setIsExpectationsSaved(false);
+  }, [activeTeam.id, initialExpectationsText]);
+
+  const handleSaveExpectations = () => {
+    const lines = expectationsMessage
+      .split('\n')
+      .map(l => l.replace(/^[•\-*]\s*/, '').trim())
+      .filter(Boolean);
+
+    setTeams?.(prev => prev.map(t => t.id === activeTeam.id ? {
+      ...t,
+      expectations: lines.length > 0 ? lines : [expectationsMessage.trim()]
+    } : t));
+
+    setIsExpectationsDirty(false);
+    setIsExpectationsSaved(true);
+    setSuccessBanner('Team expectations updated successfully');
+
+    setTimeout(() => {
+      setIsExpectationsSaved(false);
+      setSuccessBanner(null);
+    }, 4000);
+  };
 
   // Invitation flow state
   const [isAddingMember, setIsAddingMember] = useState(false);
   const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set());
   const [inviteSearch, setInviteSearch] = useState('');
   const [customMessage, setCustomMessage] = useState('');
-  const [sentInvitesByTeam, setSentInvitesByTeam] = useState<Record<string, SentInvitation[]>>({});
+  const [sentInvitesByTeam, setSentInvitesByTeam] = useState<Record<string, SentInvitation[]>>(() => {
+    try {
+      const saved = localStorage.getItem('artemis_team_sent_invites');
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return DEFAULT_SENT_INVITES;
+  });
   const [successBanner, setSuccessBanner] = useState<string | null>(null);
 
   // Eligible users: filter out anyone already in the team or 'me'
@@ -109,13 +212,19 @@ const TeamRequests: React.FC<TeamRequestsProps> = ({
       userRole: user.role,
       message: customMessage.trim() || `Hey ${user.name}! We'd love to have you on board with ${activeTeam.name} for our project.`,
       sentAt: `Today, ${timeStr}`,
-      status: 'Pending'
+      status: 'Sent'
     }));
 
-    setSentInvitesByTeam(prev => ({
-      ...prev,
-      [activeTeam.id]: [...(prev[activeTeam.id] || []), ...newInvites]
-    }));
+    setSentInvitesByTeam(prev => {
+      const updated = {
+        ...prev,
+        [activeTeam.id]: [...(prev[activeTeam.id] || []), ...newInvites]
+      };
+      try {
+        localStorage.setItem('artemis_team_sent_invites', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
 
     const count = selectedUsers.length;
     const names = selectedUsers.map(u => u.name).join(', ');
@@ -125,7 +234,6 @@ const TeamRequests: React.FC<TeamRequestsProps> = ({
     setIsAddingMember(false);
     setInviteSearch('');
 
-    // Clear feedback banner after 5 seconds
     setTimeout(() => {
       setSuccessBanner(null);
     }, 5000);
@@ -146,8 +254,9 @@ const TeamRequests: React.FC<TeamRequestsProps> = ({
             <p className="text-xs font-semibold">{successBanner}</p>
           </div>
           <button 
+            type="button"
             onClick={() => setSuccessBanner(null)}
-            className="text-emerald-500 hover:text-emerald-700 p-1 rounded-lg hover:bg-emerald-100 transition-colors"
+            className="text-emerald-500 hover:text-emerald-700 p-1 rounded-lg hover:bg-emerald-100 transition-colors cursor-pointer"
           >
             <X className="w-3.5 h-3.5" />
           </button>
@@ -155,7 +264,7 @@ const TeamRequests: React.FC<TeamRequestsProps> = ({
       )}
 
       {/* =========================================================================
-          SECTION 1: PENDING REQUESTS (Preserved existing functionality)
+          SECTION 1: PENDING REQUESTS
           ========================================================================= */}
       <div>
         <div className="flex items-center justify-between mb-3">
@@ -199,6 +308,7 @@ const TeamRequests: React.FC<TeamRequestsProps> = ({
                   </div>
                   <div className="flex items-center gap-2">
                     <button 
+                      type="button"
                       onClick={() => handleRejectRequest(request)}
                       className="px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-rose-50 hover:border-rose-200 text-slate-600 hover:text-rose-600 text-xs font-bold transition-all inline-flex items-center gap-1.5 shadow-2xs cursor-pointer"
                       title="Decline request"
@@ -207,6 +317,7 @@ const TeamRequests: React.FC<TeamRequestsProps> = ({
                       <span>Decline</span>
                     </button>
                     <button 
+                      type="button"
                       onClick={() => handleAcceptRequest(request)}
                       className="px-3 py-1.5 rounded-xl border border-emerald-300 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold transition-all shadow-2xs inline-flex items-center gap-1.5 cursor-pointer"
                       title="Accept into squad"
@@ -227,7 +338,92 @@ const TeamRequests: React.FC<TeamRequestsProps> = ({
       </div>
 
       {/* =========================================================================
-          SECTION 2: INVITE OTHERS (New Section)
+          SECTION 2: TEAM EXPECTATIONS (New Section)
+          ========================================================================= */}
+      <div className="bg-white rounded-2xl p-5 border border-slate-200/90 shadow-2xs space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-[#EBF3FF] border border-[#BFDBFE] text-[#1D4ED8] flex items-center justify-center shrink-0 shadow-2xs">
+              <Target className="w-4 h-4" />
+            </div>
+            <div>
+              <h4 className="text-xs font-black text-slate-900 uppercase tracking-widest">Team Expectations</h4>
+              <p className="text-[11px] text-slate-500 font-medium">Communicate what your squad expects from prospective members</p>
+            </div>
+          </div>
+          {isExpectationsSaved && (
+            <span className="px-2.5 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg text-xs font-bold flex items-center gap-1.5 animate-in fade-in">
+              <Check className="w-3.5 h-3.5 stroke-[2.5]" />
+              <span>Saved</span>
+            </span>
+          )}
+        </div>
+
+        <div className="space-y-3">
+          <textarea
+            rows={4}
+            value={expectationsMessage}
+            onChange={e => {
+              setExpectationsMessage(e.target.value);
+              setIsExpectationsDirty(true);
+            }}
+            placeholder="Write what your team expects from applicants (e.g. required tech skills, time commitment, daily standups, and project enthusiasm)..."
+            className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 placeholder-slate-400 focus:outline-none focus:bg-white focus:border-[#0070F3] transition-all resize-none leading-relaxed shadow-2xs"
+          />
+
+          {/* Quick preset suggestion tags */}
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mr-1">Suggestions:</span>
+            {[
+              'React & TypeScript experience',
+              'Python / AI familiarity',
+              '10+ hrs/week commitment',
+              'Daily Discord standups',
+              'Fast self-learner',
+              'Hackathon enthusiasm'
+            ].map((tag, idx) => (
+              <button
+                key={idx}
+                type="button"
+                onClick={() => {
+                  setExpectationsMessage(prev => {
+                    const trimmed = prev.trim();
+                    if (!trimmed) return tag;
+                    if (trimmed.includes(tag)) return prev;
+                    return `${trimmed}\n• ${tag}`;
+                  });
+                  setIsExpectationsDirty(true);
+                }}
+                className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-blue-50 hover:text-[#0070F3] hover:border-blue-200 text-slate-600 border border-slate-200 text-[11px] font-medium transition-all cursor-pointer shadow-2xs"
+              >
+                + {tag}
+              </button>
+            ))}
+          </div>
+
+          <div className="flex items-center justify-between pt-1">
+            <p className="text-[11px] text-slate-400">
+              Prospective members can review these expectations before submitting a join request.
+            </p>
+            <button
+              type="button"
+              onClick={handleSaveExpectations}
+              disabled={!isExpectationsDirty && !expectationsMessage.trim()}
+              className={`h-9 px-4 rounded-xl text-xs font-bold transition-all inline-flex items-center gap-1.5 shadow-2xs select-none active:scale-[0.98] ${
+                isExpectationsDirty
+                  ? 'bg-[#0070F3] hover:bg-blue-600 text-white cursor-pointer shadow-xs'
+                  : 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed'
+              }`}
+            >
+              <Check className="w-3.5 h-3.5 stroke-[2.5]" />
+              <span>Save Expectations</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* =========================================================================
+          SECTION 3: INVITE OTHERS (With Outgoing Invitations: Sent, Accepted, Rejected)
           ========================================================================= */}
       <div className="bg-white rounded-2xl p-5 border border-slate-200/90 shadow-2xs space-y-4">
         <div className="flex items-center justify-between">
@@ -238,6 +434,7 @@ const TeamRequests: React.FC<TeamRequestsProps> = ({
 
           {!isAddingMember && (
             <button
+              type="button"
               onClick={() => setIsAddingMember(true)}
               className="h-9 px-4 rounded-xl bg-[#0070F3] hover:bg-blue-600 text-white text-xs font-bold transition-all inline-flex items-center gap-2 shadow-2xs select-none active:scale-[0.98] cursor-pointer"
             >
@@ -263,8 +460,9 @@ const TeamRequests: React.FC<TeamRequestsProps> = ({
               />
               {inviteSearch && (
                 <button
+                  type="button"
                   onClick={() => setInviteSearch('')}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 rounded-full"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 rounded-full cursor-pointer"
                 >
                   <X className="w-3.5 h-3.5" />
                 </button>
@@ -354,14 +552,15 @@ const TeamRequests: React.FC<TeamRequestsProps> = ({
                       <img src={user.avatar} alt={user.name} className="w-4 h-4 rounded-full object-cover" />
                       <span>{user.name}</span>
                       <button
+                        type="button"
                         onClick={e => {
                           e.stopPropagation();
                           toggleSelectUser(user.id);
                         }}
-                        className="text-blue-400 hover:text-blue-700 ml-0.5 p-0.5 rounded-full hover:bg-blue-100"
+                        className="text-blue-400 hover:text-blue-700 ml-0.5 p-0.5 rounded-full hover:bg-blue-100 cursor-pointer"
                         title="Remove"
                       >
-                        <X className="w-3 h-3" />
+                        <X className="w-3.5 h-3.5" />
                       </button>
                     </div>
                   ))}
@@ -386,6 +585,7 @@ const TeamRequests: React.FC<TeamRequestsProps> = ({
             {/* Action Buttons: Cancel & Send Invitations */}
             <div className="flex items-center justify-end gap-2.5 pt-2">
               <button
+                type="button"
                 onClick={() => {
                   setIsAddingMember(false);
                   setSelectedUserIds(new Set());
@@ -397,6 +597,7 @@ const TeamRequests: React.FC<TeamRequestsProps> = ({
                 Cancel
               </button>
               <button
+                type="button"
                 disabled={selectedUserIds.size === 0}
                 onClick={handleSendInvitations}
                 className={`h-9 px-4 rounded-xl text-xs font-bold transition-all inline-flex items-center gap-2 shadow-2xs select-none active:scale-[0.98] ${
@@ -416,17 +617,36 @@ const TeamRequests: React.FC<TeamRequestsProps> = ({
           </div>
         ) : null}
 
-        {/* Sent Invitations List (if any invitations have been sent for this team) */}
+        {/* Outgoing Invitations List (Sent, Accepted, Rejected) */}
         {teamSentInvites.length > 0 && (
           <div className="pt-3 border-t border-slate-100 space-y-2.5">
-            <h5 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-              Pending Outgoing Invitations ({teamSentInvites.length})
-            </h5>
+            <div className="flex items-center justify-between">
+              <h5 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                Outgoing Invitations ({teamSentInvites.length})
+              </h5>
+              <div className="flex items-center gap-2 text-[10px] font-medium text-slate-500">
+                <span className="flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+                  <span>Sent</span>
+                </span>
+                <span>•</span>
+                <span className="flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                  <span>Accepted</span>
+                </span>
+                <span>•</span>
+                <span className="flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+                  <span>Rejected</span>
+                </span>
+              </div>
+            </div>
+
             <div className="space-y-2">
               {teamSentInvites.map(inv => (
                 <div
                   key={inv.id}
-                  className="p-3 rounded-xl bg-slate-50/80 border border-slate-200/70 flex items-center justify-between gap-3"
+                  className="p-3 rounded-xl bg-slate-50/80 border border-slate-200/70 flex items-center justify-between gap-3 hover:bg-slate-50 transition-colors"
                 >
                   <div className="flex items-center gap-2.5 min-w-0">
                     <img src={inv.userAvatar} alt={inv.userName} className="w-8 h-8 rounded-full object-cover border border-slate-200" />
@@ -435,12 +655,24 @@ const TeamRequests: React.FC<TeamRequestsProps> = ({
                       <p className="text-[10px] text-slate-500 truncate">{inv.userRole}</p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <span className="text-[10px] text-slate-400">{inv.sentAt}</span>
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-[#1D4ED8] border border-blue-200 flex items-center gap-1">
-                      <Clock className="w-2.5 h-2.5" />
-                      <span>Sent</span>
-                    </span>
+                  <div className="flex items-center gap-2.5 shrink-0">
+                    <span className="text-[10px] text-slate-400 hidden sm:inline">{inv.sentAt}</span>
+                    {inv.status === 'Accepted' ? (
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1">
+                        <Check className="w-2.5 h-2.5 stroke-[2.5]" />
+                        <span>Accepted</span>
+                      </span>
+                    ) : inv.status === 'Rejected' ? (
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200 flex items-center gap-1">
+                        <X className="w-2.5 h-2.5 stroke-[2.5]" />
+                        <span>Rejected</span>
+                      </span>
+                    ) : (
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-[#1D4ED8] border border-blue-200 flex items-center gap-1">
+                        <Clock className="w-2.5 h-2.5" />
+                        <span>Sent</span>
+                      </span>
+                    )}
                   </div>
                 </div>
               ))}
@@ -448,30 +680,6 @@ const TeamRequests: React.FC<TeamRequestsProps> = ({
           </div>
         )}
       </div>
-
-      {/* =========================================================================
-          SECTION 3: REQUEST HISTORY (Preserved existing functionality)
-          ========================================================================= */}
-      {historyRequests.length > 0 && (
-        <div className="pt-2 border-t border-slate-200/80">
-          <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2.5">Request History</h4>
-          <div className="space-y-2">
-            {historyRequests.map(request => (
-              <div key={request.id} className="flex items-center justify-between p-2.5 rounded-xl bg-white border border-slate-200/70 shadow-2xs">
-                <div className="flex items-center gap-2.5">
-                  <img src={request.userAvatar} alt={request.userName} className="w-7 h-7 rounded-lg object-cover grayscale opacity-80" />
-                  <span className="text-xs font-bold text-slate-700">{request.userName}</span>
-                </div>
-                <span className={`text-[9px] font-bold px-2 py-0.5 rounded-md uppercase tracking-wider ${
-                  request.status === 'Accepted' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-rose-50 text-rose-700 border border-rose-200'
-                }`}>
-                  {request.status}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
 
     </div>
   );

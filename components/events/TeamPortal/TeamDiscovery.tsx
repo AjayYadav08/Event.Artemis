@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Search, Users, X, ChevronLeft, Target, MessageCircle, Rocket } from 'lucide-react';
 import { Team } from '../types';
 
@@ -29,6 +29,8 @@ const TeamDiscovery: React.FC<TeamDiscoveryProps> = ({
   isSendingRequest = false,
   isLoading = false
 }) => {
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
+
   // =========================================================================
   // VIEW MODE: In-Page Full Team Details View (No Modal, Drawer, or Blur)
   // =========================================================================
@@ -165,24 +167,39 @@ const TeamDiscovery: React.FC<TeamDiscoveryProps> = ({
           </p>
         </div>
 
-        <div className="relative w-full sm:w-72 shrink-0">
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-          <input
-            type="text"
-            placeholder="Search hackathons or teams..."
-            className="w-full bg-slate-50 border border-slate-200 hover:border-slate-300 focus:border-[#0070F3] focus:bg-white rounded-xl pl-9 pr-9 py-2 text-xs font-medium text-slate-800 placeholder-slate-400 outline-none transition-all shadow-2xs"
-            value={teamSearchQuery}
-            onChange={(e) => setTeamSearchQuery(e.target.value)}
-          />
-          {teamSearchQuery && (
-            <button
-              onClick={() => setTeamSearchQuery('')}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-200/60 transition-colors cursor-pointer"
-              title="Clear search"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          )}
+        <div className="w-full sm:w-72 shrink-0">
+          <div
+            className={`relative flex items-center rounded-xl h-10 px-3.5 transition-colors duration-150 w-full group ${
+              isSearchFocused
+                ? 'bg-white hover:bg-slate-50/50 border-2 border-[#2563eb]'
+                : 'bg-white hover:bg-slate-50/80 border-2 border-slate-200/90 hover:border-slate-300'
+            }`}
+          >
+            <Search
+              className={`w-4 h-4 mr-2.5 shrink-0 pointer-events-none transition-colors ${
+                isSearchFocused ? 'text-[#2563eb]' : 'text-slate-400 group-hover:text-slate-500'
+              }`}
+            />
+            <input
+              type="text"
+              placeholder="Search teams or hackathons..."
+              value={teamSearchQuery}
+              onChange={(e) => setTeamSearchQuery(e.target.value)}
+              onFocus={() => setIsSearchFocused(true)}
+              onBlur={() => setIsSearchFocused(false)}
+              className="w-full bg-transparent text-xs font-medium text-slate-800 placeholder-slate-400 outline-none"
+            />
+            {teamSearchQuery && (
+              <button 
+                type="button"
+                onClick={() => setTeamSearchQuery('')} 
+                className="text-slate-400 hover:text-slate-600 ml-1.5 p-1 rounded-full hover:bg-slate-100 transition-colors cursor-pointer"
+                title="Clear search"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
         </div>
       </div>
 

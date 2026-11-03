@@ -152,11 +152,11 @@ const TeamPortal: React.FC<TeamPortalProps> = (props) => {
     : 0;
 
   return (
-    <div className="flex-1 min-h-0 flex flex-row w-full h-full bg-[#f8fafc]/50 overflow-hidden pb-3 md:pb-4 pr-3 md:pr-4">
+    <div className="flex-1 min-h-0 flex flex-row w-full h-full bg-[#f8fafc]/50 overflow-hidden pb-2.5 sm:pb-3 md:pb-3 pr-3 md:pr-4">
       {/* =========================================================================
           LEFT SIDEBAR (Teams List)
           ========================================================================= */}
-      <aside className="w-80 sm:w-84 md:w-96 shrink-0 border-r border-b border-slate-200/90 bg-white flex flex-col h-full select-none rounded-bl-2xl">
+      <aside className="w-80 sm:w-84 md:w-96 shrink-0 border-r border-b border-slate-200/90 bg-white flex flex-col h-full select-none">
         {/* 1. Header: Teams Title + New / Discover Action Icons (Back button removed) */}
         <div className="h-16 px-4 bg-white border-b border-slate-200/90 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2 min-w-0" id="tour-current-teams-title">
@@ -354,6 +354,7 @@ const TeamPortal: React.FC<TeamPortalProps> = (props) => {
         ) : showCreateTeamForm ? (
           <div className="flex-1 overflow-y-auto p-4 sm:p-5 md:p-6 bg-white no-scrollbar">
             <CreateTeamForm
+              availableEvents={availableEvents}
               setShowCreateTeamForm={setShowCreateTeamForm}
               newTeamData={newTeamData}
               setNewTeamData={setNewTeamData}
@@ -759,6 +760,7 @@ const TeamPortal: React.FC<TeamPortalProps> = (props) => {
                   joinRequests={joinRequests}
                   handleAcceptRequest={handleAcceptRequest}
                   handleRejectRequest={handleRejectRequest}
+                  setTeams={setTeams}
                 />
               </div>
             ) : (
