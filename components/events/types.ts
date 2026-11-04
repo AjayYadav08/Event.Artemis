@@ -122,6 +122,7 @@ export interface Team {
   status: 'Open' | 'Closed';
   members: TeamMember[];
   messages: ChatMessage[];
+  location?: string;
 }
 
 export interface JoinRequest {

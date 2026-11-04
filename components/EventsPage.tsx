@@ -801,6 +801,7 @@ export const MOCK_TEAMS_POOL: Team[] = [
     name: 'Byte Busters',
     hackathon: 'Flash Code Sprint',
     description: 'Fast and efficient bug hunters.',
+    location: 'Server Room 404 • On-Campus',
     expectations: [
       'Quick problem solver',
       'Familiar with C++ debuggers',
@@ -819,6 +820,7 @@ export const MOCK_TEAMS_POOL: Team[] = [
     name: 'Design Dynamos',
     hackathon: 'Global AI Hackathon',
     description: 'Creating the most intuitive UI for AI.',
+    location: 'Design Studio B • Innovation Wing',
     expectations: [
       'Expert Figma skills',
       'Experience with React/Tailwind',
