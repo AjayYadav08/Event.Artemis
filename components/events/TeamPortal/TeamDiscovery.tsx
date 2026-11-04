@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
-import { Search, Users, X, ChevronLeft, Target, MessageCircle, Rocket } from 'lucide-react';
-import { Team } from '../types';
+import React, { useState, useMemo } from 'react';
+import { Search, Users, X, ChevronLeft, Target, MessageCircle, Rocket, Clock, Check } from 'lucide-react';
+import { Team, JoinRequest } from '../types';
 
 interface TeamDiscoveryProps {
   setShowJoinTeamView: (val: boolean) => void;
@@ -15,6 +15,8 @@ interface TeamDiscoveryProps {
   handleSendJoinRequest?: (team: Team) => void;
   isSendingRequest?: boolean;
   isLoading?: boolean;
+  joinRequests?: Record<string, JoinRequest[]>;
+  teams?: Team[];
 }
 
 const TeamDiscovery: React.FC<TeamDiscoveryProps> = ({
@@ -27,9 +29,37 @@ const TeamDiscovery: React.FC<TeamDiscoveryProps> = ({
   setJoinRequestMessage,
   handleSendJoinRequest,
   isSendingRequest = false,
-  isLoading = false
+  isLoading = false,
+  joinRequests,
+  teams = []
 }) => {
   const [isSearchFocused, setIsSearchFocused] = useState(false);
+
+  // Map of all known teams across active squads and pool
+  const allKnownTeams = useMemo(() => {
+    const map = new Map<string, Team>();
+    (teams || []).forEach(t => map.set(t.id, t));
+    filteredTeamsPool.forEach(t => map.set(t.id, t));
+    return map;
+  }, [teams, filteredTeamsPool]);
+
+  // User's previous join requests (userId === 'me' across all teams in joinRequests)
+  const myJoinRequests = useMemo(() => {
+    if (!joinRequests) return [];
+    const allReqs: (JoinRequest & { team?: Team })[] = [];
+    Object.values(joinRequests).forEach(teamReqs => {
+      (teamReqs || []).forEach(req => {
+        if (req.userId === 'me') {
+          const matchedTeam = allKnownTeams.get(req.teamId);
+          allReqs.push({
+            ...req,
+            team: matchedTeam
+          });
+        }
+      });
+    });
+    return allReqs;
+  }, [joinRequests, allKnownTeams]);
 
   // =========================================================================
   // VIEW MODE: In-Page Full Team Details View (No Modal, Drawer, or Blur)
@@ -301,6 +331,123 @@ const TeamDiscovery: React.FC<TeamDiscoveryProps> = ({
                 </div>
               </div>
             ))}
+          </div>
+        )}
+      </div>
+
+      {/* =========================================================================
+          SECTION 2: PREVIOUS JOIN REQUESTS
+          ========================================================================= */}
+      <div className="w-full space-y-3 pt-6 border-t border-slate-200/90">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 shrink-0">
+          <div>
+            <h3 className="text-xs font-black text-slate-900 uppercase tracking-widest">
+              Previous Join Requests {myJoinRequests.length > 0 ? `(${myJoinRequests.length})` : ''}
+            </h3>
+            <p className="text-[11px] text-slate-500 font-medium">
+              Track the status of squads you have applied to join
+            </p>
+          </div>
+          {myJoinRequests.length > 0 && (
+            <div className="flex items-center gap-2 text-[10px] font-medium text-slate-500 mt-1 sm:mt-0">
+              <span className="flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                <span>Accepted</span>
+              </span>
+              <span>•</span>
+              <span className="flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                <span>Pending</span>
+              </span>
+              <span>•</span>
+              <span className="flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+                <span>Rejected</span>
+              </span>
+            </div>
+          )}
+        </div>
+
+        {myJoinRequests.length === 0 ? (
+          <div className="py-8 sm:py-10 text-center text-slate-400 bg-white rounded-2xl border border-slate-200/90 shadow-2xs p-6 flex flex-col items-center">
+            <div className="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center mb-2 text-slate-400">
+              <Clock className="w-5 h-5" />
+            </div>
+            <p className="text-xs font-bold text-slate-700">No previous join requests</p>
+            <p className="text-[11px] text-slate-400 mt-0.5 max-w-xs">
+              When you submit a request to join an available squad, its live approval status will be displayed here.
+            </p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 sm:gap-4 w-full">
+            {myJoinRequests.map((req) => {
+              const teamName = req.teamName || req.team?.name || 'Squad Application';
+              const hackathonName = req.hackathon || req.team?.hackathon || 'Hackathon Showcase';
+              const firstLetter = teamName.charAt(0);
+
+              return (
+                <div
+                  key={req.id}
+                  className="w-full p-3.5 sm:p-4 rounded-2xl border border-slate-200/90 bg-white shadow-2xs flex flex-col justify-between hover:border-slate-300 transition-all duration-150"
+                >
+                  {/* Top: Avatar, Name, Hackathon, and Status Badge */}
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-start gap-3 min-w-0">
+                      <div className="w-10 h-10 rounded-full bg-[#EBF3FF] border border-[#BFDBFE] text-[#1D4ED8] font-bold text-sm flex items-center justify-center shrink-0 shadow-2xs">
+                        {firstLetter}
+                      </div>
+                      <div className="min-w-0">
+                        <h4 className="text-sm font-bold text-slate-900 truncate">
+                          {teamName}
+                        </h4>
+                        <p className="text-xs text-slate-500 truncate font-normal">
+                          {hackathonName}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Status Badge */}
+                    <div className="shrink-0">
+                      {req.status === 'Accepted' ? (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-2xs">
+                          <Check className="w-3 h-3 stroke-[2.5]" />
+                          <span>Accepted</span>
+                        </span>
+                      ) : req.status === 'Rejected' ? (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-rose-50 text-rose-700 border border-rose-200 shadow-2xs">
+                          <X className="w-3 h-3 stroke-[2.5]" />
+                          <span>Rejected</span>
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-50 text-amber-700 border border-amber-200 shadow-2xs">
+                          <Clock className="w-3 h-3" />
+                          <span>Pending</span>
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Request Message */}
+                  {req.message && (
+                    <div className="my-2.5 p-2.5 bg-slate-50/80 rounded-xl border border-slate-100">
+                      <p className="text-xs text-slate-600 italic font-medium leading-relaxed line-clamp-2">
+                        "{req.message}"
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Bottom: Timestamp and team members info */}
+                  <div className="flex items-center justify-between pt-2.5 border-t border-slate-100 text-[11px] text-slate-400 font-medium mt-auto">
+                    <span>Submitted {req.timestamp}</span>
+                    {req.team && (
+                      <span className="text-slate-500">
+                        {req.team.members.length}/{req.team.maxMembers} members
+                      </span>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
       </div>

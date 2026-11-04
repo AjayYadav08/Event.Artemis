@@ -41,6 +41,9 @@ export interface CampusEvent {
   time: string;
   location: string;
   domain: string;
+  conductingAgency?: string;
+  locationType?: 'On-Campus' | 'Off-Campus';
+  registrationWindow?: string;
   xp: number;
   attendees: number;
   sectionParticipants: number; 
@@ -99,10 +102,14 @@ export interface ChatMessage {
   senderName: string;
   text: string;
   timestamp: string;
+  date?: string;
+  createdAt?: number;
   isMe: boolean;
   audioUrl?: string;
   audioDuration?: number;
   attachment?: ChatAttachment;
+  deletedForUsers?: string[];
+  deletedForEveryone?: boolean;
 }
 
 export interface Team {
@@ -120,6 +127,8 @@ export interface Team {
 export interface JoinRequest {
   id: string;
   teamId: string;
+  teamName?: string;
+  hackathon?: string;
   userId: string;
   userName: string;
   userAvatar: string;

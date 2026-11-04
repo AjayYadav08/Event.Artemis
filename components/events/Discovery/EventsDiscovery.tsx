@@ -50,6 +50,10 @@ const EventsDiscovery: React.FC<EventsDiscoveryProps> = (props) => {
   const visiblePastCount = showPast ? pastEvents.length : 0;
   const totalResults = visibleClosingCount + visibleUpcomingCount + visiblePastCount;
 
+  const hasClosing = showClosing && closingSoonEvents.length > 0;
+  const hasUpcoming = showUpcoming && upcomingEvents.length > 0;
+  const hasPast = showPast && pastEvents.length > 0;
+
   if (showTeamsView) return null;
 
   return (
@@ -82,8 +86,8 @@ const EventsDiscovery: React.FC<EventsDiscoveryProps> = (props) => {
           </button>
         </div>
       ) : (
-        <div className="space-y-16">
-          {showClosing && (
+        <div className="space-y-5">
+          {hasClosing && (
             <EventGrid 
               id="section-closing"
               title="Closing Soon"
@@ -101,7 +105,11 @@ const EventsDiscovery: React.FC<EventsDiscoveryProps> = (props) => {
             />
           )}
 
-          {showUpcoming && (
+          {hasClosing && (hasUpcoming || hasPast) && (
+            <div className="border-b border-slate-100" />
+          )}
+
+          {hasUpcoming && (
             <EventGrid 
               id="section-upcoming"
               title="Upcoming"
@@ -119,7 +127,11 @@ const EventsDiscovery: React.FC<EventsDiscoveryProps> = (props) => {
             />
           )}
 
-          {showPast && (
+          {hasUpcoming && hasPast && (
+            <div className="border-b border-slate-100" />
+          )}
+
+          {hasPast && (
             <EventGrid 
               id="section-past"
               title="Past Due"

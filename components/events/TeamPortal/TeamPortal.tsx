@@ -5,6 +5,7 @@ import {
   Compass, 
   X, 
   ChevronLeft,
+  ChevronDown,
   Inbox,
   LogOut,
   Settings,
@@ -46,6 +47,7 @@ interface TeamPortalProps {
   ratingFeedback: string;
   handleSubmitRating: () => void;
   teamMessages: Record<string, ChatMessage[]>;
+  handleDeleteMessage?: (teamId: string, messageId: string, deleteType: 'forMe' | 'forEveryone', userId?: string) => void;
   chatInput: string;
   setChatInput: (val: string) => void;
   sendMessage: (customText?: string, audioData?: { url?: string; duration?: number }, attachmentData?: ChatAttachment) => void;
@@ -80,7 +82,7 @@ const TeamPortal: React.FC<TeamPortalProps> = (props) => {
     removedMembers, submittedRatings,
     handleMakeHost, setConfirmRemoveTarget, confirmRemoveTarget, handleRemoveMember,
     setRatingTarget, ratingTarget, setRatingStars, ratingStars, setRatingFeedback, ratingFeedback, handleSubmitRating,
-    teamMessages, chatInput, setChatInput, sendMessage, chatEndRef,
+    teamMessages, handleDeleteMessage, chatInput, setChatInput, sendMessage, chatEndRef,
     handleAcceptRequest, handleRejectRequest,
     teamSearchQuery, setTeamSearchQuery, filteredTeamsPool, setPreviewingTeam,
     previewingTeam, joinRequestMessage, setJoinRequestMessage, handleSendJoinRequest, isSendingRequest,
@@ -102,6 +104,35 @@ const TeamPortal: React.FC<TeamPortalProps> = (props) => {
       setActiveTeam(teams[0]);
     }
   }, [activeTeam, teams, setActiveTeam]);
+
+  // Whenever TeamPortal mounts or is entered, default to Discover Teams page
+  useEffect(() => {
+    setShowJoinTeamView(true);
+    setShowCreateTeamForm(false);
+    setShowTeamInfo(false);
+  }, []);
+
+  // Active view tracker for resetting scroll position across pages
+  const activeViewName = showJoinTeamView
+    ? `discover-${previewingTeam ? previewingTeam.id : 'list'}`
+    : showCreateTeamForm
+    ? 'create-team'
+    : showTeamInfo
+    ? `team-info-${effectiveActiveTeam?.id}`
+    : activeTab === 'Requests'
+    ? `requests-${effectiveActiveTeam?.id}`
+    : `chat-${effectiveActiveTeam?.id}`;
+
+  const discoverScrollRef = useRef<HTMLDivElement>(null);
+  const createTeamScrollRef = useRef<HTMLDivElement>(null);
+  const teamInfoScrollRef = useRef<HTMLDivElement>(null);
+
+  // Reset scroll position to top whenever switching pages or revisiting a page
+  useEffect(() => {
+    if (discoverScrollRef.current) discoverScrollRef.current.scrollTop = 0;
+    if (createTeamScrollRef.current) createTeamScrollRef.current.scrollTop = 0;
+    if (teamInfoScrollRef.current) teamInfoScrollRef.current.scrollTop = 0;
+  }, [activeViewName]);
 
   // Sidebar search / filter state
   const [sidebarSearch, setSidebarSearch] = useState('');
@@ -152,7 +183,7 @@ const TeamPortal: React.FC<TeamPortalProps> = (props) => {
     : 0;
 
   return (
-    <div className="flex-1 min-h-0 flex flex-row w-full h-full bg-[#f8fafc]/50 overflow-hidden pb-2.5 sm:pb-3 md:pb-3 pr-3 md:pr-4">
+    <div className="flex-1 min-h-0 flex flex-row w-full h-full bg-white overflow-hidden pb-[30px] sm:pb-[36px] md:pb-[36px] pr-3 md:pr-4">
       {/* =========================================================================
           LEFT SIDEBAR (Teams List)
           ========================================================================= */}
@@ -260,8 +291,10 @@ const TeamPortal: React.FC<TeamPortalProps> = (props) => {
               const teamPendingCount = (joinRequests[team.id] || []).filter(r => r.status === 'Pending').length;
               const isUserHost = teamHosts[team.id] === 'me';
 
-              // Last message snippet
-              const msgs = teamMessages[team.id] || team.messages || [];
+              // Last message snippet (excluding messages deleted for me)
+              const msgs = (teamMessages[team.id] || team.messages || []).filter(
+                m => !m.deletedForUsers?.includes('me')
+              );
               const lastMsg = msgs.length > 0 ? msgs[msgs.length - 1] : null;
 
               return (
@@ -336,7 +369,11 @@ const TeamPortal: React.FC<TeamPortalProps> = (props) => {
           ========================================================================= */}
       <main className="flex-1 min-w-0 flex flex-col bg-white h-full overflow-hidden border-r border-b border-slate-200/90 rounded-br-2xl">
         {showJoinTeamView ? (
-          <div className="flex-1 overflow-y-auto p-4 sm:p-5 md:p-6 bg-white no-scrollbar">
+          <div 
+            key={`page-discover-${previewingTeam ? previewingTeam.id : 'list'}`}
+            ref={discoverScrollRef}
+            className="flex-1 overflow-y-auto p-4 sm:p-5 md:p-6 bg-white no-scrollbar"
+          >
             <TeamDiscovery
               setShowJoinTeamView={setShowJoinTeamView}
               setShowTeamsView={setShowTeamsView}
@@ -349,10 +386,16 @@ const TeamPortal: React.FC<TeamPortalProps> = (props) => {
               setJoinRequestMessage={setJoinRequestMessage}
               handleSendJoinRequest={handleSendJoinRequest}
               isSendingRequest={isSendingRequest}
+              joinRequests={joinRequests}
+              teams={teams}
             />
           </div>
         ) : showCreateTeamForm ? (
-          <div className="flex-1 overflow-y-auto p-4 sm:p-5 md:p-6 bg-white no-scrollbar">
+          <div 
+            key="page-create-team"
+            ref={createTeamScrollRef}
+            className="flex-1 overflow-y-auto p-4 sm:p-5 md:p-6 bg-white no-scrollbar"
+          >
             <CreateTeamForm
               availableEvents={availableEvents}
               setShowCreateTeamForm={setShowCreateTeamForm}
@@ -435,7 +478,11 @@ const TeamPortal: React.FC<TeamPortalProps> = (props) => {
               /* =========================================================================
                   TEAM INFORMATION VIEW (Displays in the main content area)
                   ========================================================================= */
-              <div className="flex-1 min-h-0 flex flex-col bg-slate-50/50 overflow-y-auto p-6 md:p-8 no-scrollbar">
+              <div 
+                key={`page-team-info-${effectiveActiveTeam.id}`}
+                ref={teamInfoScrollRef}
+                className="flex-1 min-h-0 flex flex-col bg-slate-50/50 overflow-y-auto p-6 md:p-8 no-scrollbar"
+              >
                 {/* Subtle Back Button in Corner of Main Content Area */}
                 <div className="max-w-3xl mx-auto w-full mb-4 flex items-center justify-between">
                   <button
@@ -744,7 +791,10 @@ const TeamPortal: React.FC<TeamPortalProps> = (props) => {
               </div>
             ) : activeTab === 'Requests' ? (
               /* Requests View */
-              <div className="flex-1 min-h-0 flex flex-col overflow-hidden bg-slate-50/50">
+              <div 
+                key={`page-requests-${effectiveActiveTeam.id}`}
+                className="flex-1 min-h-0 flex flex-col overflow-hidden bg-slate-50/50"
+              >
                 <div className="px-6 py-3 bg-white border-b border-slate-200/90 flex items-center shrink-0">
                   <button
                     onClick={() => setActiveTab('Chat')}
@@ -765,7 +815,10 @@ const TeamPortal: React.FC<TeamPortalProps> = (props) => {
               </div>
             ) : (
               /* Default Main Chat Stream */
-              <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+              <div 
+                key={`page-chat-${effectiveActiveTeam.id}`}
+                className="flex-1 min-h-0 flex flex-col overflow-hidden"
+              >
                 <TeamChat
                   activeTeam={effectiveActiveTeam}
                   teamMessages={teamMessages}
@@ -773,6 +826,7 @@ const TeamPortal: React.FC<TeamPortalProps> = (props) => {
                   setChatInput={setChatInput}
                   sendMessage={sendMessage}
                   chatEndRef={chatEndRef}
+                  onDeleteMessage={(msgId, deleteType) => handleDeleteMessage?.(effectiveActiveTeam.id, msgId, deleteType, 'me')}
                 />
               </div>
             )}

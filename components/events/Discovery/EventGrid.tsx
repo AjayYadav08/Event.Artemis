@@ -89,21 +89,22 @@ const EventGrid: React.FC<EventGridProps> = ({
   if (events.length === 0) return null;
 
   return (
-    <div className="space-y-6">
-      <div id={id} className="scroll-mt-24 flex items-center justify-between border-b border-slate-100 pb-4 px-0">
+    <div className="space-y-5">
+      <div id={id} className="scroll-mt-24 flex items-center justify-between px-0">
         <div className="flex items-center gap-3">
           <Icon className={`w-5 h-5 ${colorClass.replace('bg-', 'text-')}`} />
           <h2 className="text-lg font-bold text-slate-800 tracking-tight">{title}</h2>
         </div>
         <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{events.length} results</span>
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 w-full">
         {cards.map(({ event, isInterested, isNotInterested, isRegistered, isPast, isUrgent, timeString }) => (
           <div
             key={`${title}-${event.id}`}
+            className="h-[195px]"
             style={{
               contentVisibility: 'auto',
-              containIntrinsicSize: '1px 500px'
+              containIntrinsicSize: '1px 195px'
             } as React.CSSProperties}
           >
             <EventCard

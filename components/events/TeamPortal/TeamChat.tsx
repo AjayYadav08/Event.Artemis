@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState, useMemo } from 'react';
-import { X, Check, Play, Pause, Mic, Download, ExternalLink, FileText, Eye } from 'lucide-react';
+import { X, Check, Play, Pause, Mic, Download, ExternalLink, FileText, Eye, Trash2, Users, AlertTriangle, Ban, ChevronDown } from 'lucide-react';
 import { Team, ChatMessage, ChatAttachment } from '../types';
 
 interface TeamChatProps {
@@ -9,6 +9,8 @@ interface TeamChatProps {
   setChatInput: (val: string | ((prev: string) => string)) => void;
   sendMessage: (customText?: string, audioData?: { url?: string; duration?: number }, attachmentData?: ChatAttachment) => void;
   chatEndRef?: React.RefObject<HTMLDivElement>;
+  currentUserId?: string;
+  onDeleteMessage?: (messageId: string, deleteType: 'forMe' | 'forEveryone') => void;
 }
 
 // Generate a valid, playable WAV audio blob URL
@@ -279,19 +281,105 @@ const VoiceMessagePlayer: React.FC<{ msg: ChatMessage }> = ({ msg }) => {
   );
 };
 
+/**
+ * Safely extracts and normalizes the Date of a message
+ */
+function getMessageDate(msg: ChatMessage): Date {
+  if (msg.date) {
+    const d = new Date(msg.date);
+    if (!isNaN(d.getTime())) return d;
+  }
+  if (msg.createdAt) {
+    const d = new Date(msg.createdAt);
+    if (!isNaN(d.getTime())) return d;
+  }
+  if (msg.timestamp) {
+    const d = new Date(msg.timestamp);
+    if (!isNaN(d.getTime()) && (msg.timestamp.includes('-') || msg.timestamp.includes('/'))) {
+      return d;
+    }
+  }
+  return new Date();
+}
+
+/**
+ * WhatsApp-style date label formatter: "Today", "Yesterday", or formatted calendar date
+ */
+function getDateLabel(date: Date): string {
+  const now = new Date();
+  const d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+
+  if (d.getTime() === today.getTime()) {
+    return 'Today';
+  }
+  if (d.getTime() === yesterday.getTime()) {
+    return 'Yesterday';
+  }
+
+  return d.toLocaleDateString('en-US', {
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric'
+  });
+}
+
 const TeamChat: React.FC<TeamChatProps> = ({
   activeTeam,
   teamMessages,
   chatInput,
   setChatInput,
   sendMessage,
-  chatEndRef
+  chatEndRef,
+  currentUserId = 'me',
+  onDeleteMessage
 }) => {
-  const messages = teamMessages[activeTeam.id] || [];
+  const rawMessages = teamMessages[activeTeam.id] || [];
+  const messages = useMemo(() => {
+    return rawMessages.filter(msg => {
+      // Exclude messages deleted for the current user ("Delete for Me")
+      if (msg.deletedForUsers && msg.deletedForUsers.includes('me')) return false;
+      // Note: msg.deletedForEveryone messages remain so the placeholder can be shown
+      return true;
+    });
+  }, [rawMessages]);
+
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const emojiPickerRef = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  // Message deletion & action menu state
+  const [activeMenuMsgId, setActiveMenuMsgId] = useState<string | null>(null);
+  const [confirmDeleteEveryoneMsg, setConfirmDeleteEveryoneMsg] = useState<ChatMessage | null>(null);
+
+  // Close message action menu on click outside
+  useEffect(() => {
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setActiveMenuMsgId(null);
+      }
+    };
+    if (activeMenuMsgId) {
+      document.addEventListener('mousedown', handleOutsideClick);
+    }
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, [activeMenuMsgId]);
+
+  // Handle Escape key to dismiss action menu or modal
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setActiveMenuMsgId(null);
+        setConfirmDeleteEveryoneMsg(null);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   // Audio recording hardware refs
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -331,11 +419,11 @@ const TeamChat: React.FC<TeamChatProps> = ({
     prevMessagesLength.current = messages.length;
 
     if (isTeamChange) {
-      container.scrollTop = container.scrollHeight;
+      container.scrollTop = 0;
     } else if (isNewMessage) {
       container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
     } else {
-      container.scrollTop = container.scrollHeight;
+      container.scrollTop = 0;
     }
   }, [messages, activeTeam.id]);
 
@@ -519,6 +607,85 @@ const TeamChat: React.FC<TeamChatProps> = ({
     }
   };
 
+  // Render action menu (Delete for me / Delete for everyone) attached to message
+  const renderActionMenu = (msg: ChatMessage, isMsgMe: boolean, isLastTwo: boolean) => {
+    if (activeMenuMsgId !== msg.id) return null;
+    return (
+      <div
+        ref={menuRef}
+        className={`absolute z-50 ${isLastTwo ? 'bottom-full mb-1.5' : 'top-full mt-1.5'} ${
+          isMsgMe ? 'right-0' : 'left-0'
+        } w-48 bg-white rounded-2xl shadow-xl shadow-slate-900/15 border border-slate-200 p-1.5 animate-in fade-in zoom-in-95 duration-100 select-none text-slate-800 not-italic font-normal`}
+      >
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onDeleteMessage?.(msg.id, 'forMe');
+            setActiveMenuMsgId(null);
+          }}
+          className="w-full text-left px-3 py-2 rounded-xl text-xs font-semibold text-slate-700 hover:text-slate-900 hover:bg-slate-100 flex items-center gap-2.5 cursor-pointer transition-colors"
+        >
+          <Trash2 className="w-3.5 h-3.5 text-slate-400" />
+          <span>Delete for me</span>
+        </button>
+
+        {isMsgMe && !msg.deletedForEveryone && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setConfirmDeleteEveryoneMsg(msg);
+              setActiveMenuMsgId(null);
+            }}
+            className="w-full text-left px-3 py-2 rounded-xl text-xs font-semibold text-rose-600 hover:text-rose-700 hover:bg-rose-50 flex items-center gap-2.5 cursor-pointer transition-colors"
+          >
+            <Users className="w-3.5 h-3.5 text-rose-500" />
+            <span>Delete for everyone</span>
+          </button>
+        )}
+      </div>
+    );
+  };
+
+  // Render timestamp and status ticks (ticks stay visible like WhatsApp)
+  const renderTimestampAndTicks = (msg: ChatMessage, isMsgMe: boolean) => (
+    <span className={`text-[10px] font-medium ml-2.5 float-right mt-1.5 select-none inline-flex items-center gap-1 shrink-0 ${
+      isMsgMe ? 'text-blue-100' : 'text-slate-400'
+    }`}>
+      <span>{msg.timestamp}</span>
+      {isMsgMe && (
+        <svg viewBox="0 0 16 11" className="w-3.5 h-2.5 text-blue-200 fill-current shrink-0">
+          <path d="M11.07 0.93a0.75 0.75 0 0 0-1.06 0L5.36 5.58 3.49 3.71a0.75 0.75 0 0 0-1.06 1.06l2.4 2.4a0.75 0.75 0 0 0 1.06 0l5.18-5.18a0.75 0.75 0 0 0 0-1.06zM14.07 0.93a0.75 0.75 0 0 0-1.06 0L8.36 5.58l0.53 0.53 4.65-4.65a0.75 0.75 0 0 0 0-1.06z" />
+        </svg>
+      )}
+    </span>
+  );
+
+  // Render WhatsApp-style hover downward arrow at top-right corner of message bubble
+  const renderHoverDropdownArrow = (msg: ChatMessage, isMsgMe: boolean) => (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation();
+        setActiveMenuMsgId(activeMenuMsgId === msg.id ? null : msg.id);
+      }}
+      className={`absolute top-1.5 right-2 z-10 w-4 h-4 flex items-center justify-center transition-all duration-150 cursor-pointer rounded-full ${
+        activeMenuMsgId === msg.id
+          ? 'opacity-100 pointer-events-auto'
+          : 'opacity-0 pointer-events-none group-hover/msg:opacity-100 group-hover/msg:pointer-events-auto'
+      } ${
+        isMsgMe
+          ? 'text-blue-100 hover:text-white hover:bg-white/15'
+          : 'text-slate-400 hover:text-slate-700 hover:bg-slate-200/60'
+      }`}
+      title="Message options"
+      aria-label="Message options"
+    >
+      <ChevronDown className="w-3.5 h-3.5 stroke-[2.5]" />
+    </button>
+  );
+
   return (
     <div className="flex-1 flex flex-col min-h-0 bg-white">
       {/* Messages Scroll Area - Option 5: Blueprint Tech Matrix */}
@@ -527,138 +694,175 @@ const TeamChat: React.FC<TeamChatProps> = ({
         className="flex-1 overflow-y-auto px-6 py-4 space-y-1 no-scrollbar bg-[#F8FAFC] bg-blueprint-grid"
       >
         {messages.map((msg, idx) => {
-          const isVoice = Boolean(msg.audioUrl || msg.text.startsWith('🎙️') || msg.text.includes('Voice message'));
+          const isVoice = Boolean(!msg.deletedForEveryone && (msg.audioUrl || msg.text.startsWith('🎙️') || msg.text.includes('Voice message')));
+          const msgDate = getMessageDate(msg);
+          const dateLabel = getDateLabel(msgDate);
           const prevMsg = idx > 0 ? messages[idx - 1] : null;
-          const isFirstInGroup = !prevMsg || prevMsg.senderId !== msg.senderId;
+          const prevMsgDate = prevMsg ? getMessageDate(prevMsg) : null;
+          const prevDateLabel = prevMsgDate ? getDateLabel(prevMsgDate) : null;
+          const showDateSeparator = idx === 0 || dateLabel !== prevDateLabel;
+
+          const isFirstInGroup = showDateSeparator || !prevMsg || prevMsg.senderId !== msg.senderId;
+          const isMsgMe = msg.isMe || msg.senderId === 'me';
+          const isLastTwo = idx >= messages.length - 2;
 
           return (
-            <div 
-              key={msg.id} 
-              className={`flex ${msg.isMe ? 'justify-end' : 'justify-start'} ${isFirstInGroup ? 'mt-2.5 first:mt-0' : 'mt-0.5'}`}
-            >
+            <React.Fragment key={msg.id}>
+              {/* WhatsApp-Style Date Separator Badge */}
+              {showDateSeparator && (
+                <div className="flex justify-center my-3 sticky top-2 z-10 pointer-events-none">
+                  <div className="px-3.5 py-1 bg-white/95 backdrop-blur-xs shadow-2xs border border-slate-200/90 rounded-lg text-[11.5px] font-semibold text-slate-500 select-none">
+                    {dateLabel}
+                  </div>
+                </div>
+              )}
+
               <div 
-                className={`max-w-[78%] sm:max-w-[68%] relative px-3.5 py-2 text-sm shadow-2xs ${
-                  msg.isMe
-                    ? `bg-[#0070F3] text-white ${isFirstInGroup ? 'rounded-2xl rounded-tr-xs' : 'rounded-2xl'}`
-                    : `bg-white text-slate-800 border border-slate-200/90 ${isFirstInGroup ? 'rounded-2xl rounded-tl-xs' : 'rounded-2xl'}`
-                }`}
+                data-msg-id={msg.id}
+                className={`flex items-center gap-1.5 ${isMsgMe ? 'justify-end' : 'justify-start'} ${isFirstInGroup ? 'mt-2.5 first:mt-0' : 'mt-0.5'} group/msg relative`}
+                onContextMenu={(e) => {
+                  e.preventDefault();
+                  setActiveMenuMsgId(activeMenuMsgId === msg.id ? null : msg.id);
+                }}
               >
-                {/* Sender Name for received messages (first message in group only, colored) */}
-                {!msg.isMe && isFirstInGroup && (
-                  <div className={`text-[11.5px] font-bold ${getParticipantColor(msg.senderName)} mb-0.5 select-none`}>
-                    {msg.senderName}
-                  </div>
-                )}
+              {msg.deletedForEveryone ? (
+                /* Deleted Message Placeholder (WhatsApp-style) */
+                <div 
+                  className={`max-w-[78%] sm:max-w-[68%] relative px-3.5 py-2 text-xs italic flex items-center gap-2 select-none border border-slate-200/90 bg-slate-100/80 text-slate-500 shadow-2xs ${
+                    isFirstInGroup ? (isMsgMe ? 'rounded-2xl rounded-tr-xs' : 'rounded-2xl rounded-tl-xs') : 'rounded-2xl'
+                  }`}
+                >
+                  {renderHoverDropdownArrow(msg, isMsgMe)}
+                  <Ban className="w-3.5 h-3.5 text-slate-400 shrink-0 not-italic" />
+                  <span className="text-[13px] select-text">This message was deleted</span>
+                  <span className="text-[10px] font-medium ml-2 text-slate-400 not-italic shrink-0 inline-flex items-center gap-0.5">
+                    <span>{msg.timestamp}</span>
+                  </span>
+                  {renderActionMenu(msg, isMsgMe, isLastTwo)}
+                </div>
+              ) : (
+                <div 
+                  className={`max-w-[78%] sm:max-w-[68%] relative px-3.5 py-2 text-sm shadow-2xs ${
+                    isMsgMe
+                      ? `bg-[#0070F3] text-white ${isFirstInGroup ? 'rounded-2xl rounded-tr-xs' : 'rounded-2xl'}`
+                      : `bg-white text-slate-800 border border-slate-200/90 ${isFirstInGroup ? 'rounded-2xl rounded-tl-xs' : 'rounded-2xl'}`
+                  }`}
+                >
+                  {/* WhatsApp-style hover downward arrow at top-right corner of bubble */}
+                  {renderHoverDropdownArrow(msg, isMsgMe)}
 
-                {/* Message Body & In-Bubble Bottom-Right Timestamp */}
-                {isVoice ? (
-                  <div>
-                    <VoiceMessagePlayer msg={msg} />
-                    <div className="flex justify-end items-center gap-1 mt-0.5">
-                      <span className={`text-[10px] font-medium ${msg.isMe ? 'text-blue-100' : 'text-slate-400'}`}>
-                        {msg.timestamp}
-                      </span>
-                      {msg.isMe && (
-                        <svg viewBox="0 0 16 11" className="w-3.5 h-2.5 text-blue-200 fill-current inline-block">
-                          <path d="M11.07 0.93a0.75 0.75 0 0 0-1.06 0L5.36 5.58 3.49 3.71a0.75 0.75 0 0 0-1.06 1.06l2.4 2.4a0.75 0.75 0 0 0 1.06 0l5.18-5.18a0.75 0.75 0 0 0 0-1.06zM14.07 0.93a0.75 0.75 0 0 0-1.06 0L8.36 5.58l0.53 0.53 4.65-4.65a0.75 0.75 0 0 0 0-1.06z" />
-                        </svg>
-                      )}
+                  {/* Sender Name for received messages (first message in group only, colored) */}
+                  {!isMsgMe && isFirstInGroup && (
+                    <div className={`text-[11.5px] font-bold ${getParticipantColor(msg.senderName)} mb-0.5 select-none`}>
+                      {msg.senderName}
                     </div>
-                  </div>
-                ) : (
-                  <div className="leading-relaxed">
-                    {/* Render Real Attachment if present */}
-                    {msg.attachment && (
-                      <div className="mb-2">
-                        {msg.attachment.type.startsWith('image/') || /\.(png|jpe?g|gif|webp|svg)$/i.test(msg.attachment.name) ? (
-                          <div 
-                            onClick={() => setPreviewMedia({ url: msg.attachment!.url, name: msg.attachment!.name, type: 'image' })}
-                            className="cursor-pointer group relative overflow-hidden rounded-xl border border-black/10 shadow-2xs my-1 max-w-xs"
-                            title="Click to view full image"
-                          >
-                            <img 
-                              src={msg.attachment.url} 
-                              alt={msg.attachment.name} 
-                              className="w-full max-h-56 object-cover group-hover:scale-[1.02] transition-transform duration-200" 
-                            />
-                            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/25 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
-                              <span className="px-2.5 py-1 bg-black/75 text-white text-[11px] font-bold rounded-lg flex items-center gap-1.5 backdrop-blur-xs">
-                                <Eye className="w-3.5 h-3.5" />
-                                Click to preview
-                              </span>
-                            </div>
-                          </div>
-                        ) : msg.attachment.type === 'application/pdf' || msg.attachment.name.toLowerCase().endsWith('.pdf') ? (
-                          <div 
-                            onClick={() => handleOpenAttachment(msg.attachment!)}
-                            className={`p-2.5 rounded-xl border flex items-center justify-between gap-3 cursor-pointer transition-all select-none my-1 ${
-                              msg.isMe
-                                ? 'bg-blue-600/40 hover:bg-blue-600/60 border-blue-300/40 text-white'
-                                : 'bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-900'
-                            }`}
-                            title="Click to preview PDF"
-                          >
-                            <div className="flex items-center gap-2.5 min-w-0">
-                              <div className="w-8 h-8 rounded-lg bg-rose-500 text-white font-black text-[10px] flex items-center justify-center shrink-0 shadow-2xs">
-                                PDF
-                              </div>
-                              <div className="min-w-0">
-                                <p className="text-xs font-bold truncate">{msg.attachment.name}</p>
-                                <p className={`text-[10px] ${msg.isMe ? 'text-blue-100' : 'text-slate-400'}`}>
-                                  {formatFileSize(msg.attachment.size)} • Click to preview
-                                </p>
-                              </div>
-                            </div>
-                            <ExternalLink className="w-3.5 h-3.5 shrink-0 opacity-80" />
-                          </div>
-                        ) : (
-                          <div 
-                            onClick={() => handleOpenAttachment(msg.attachment!)}
-                            className={`p-2.5 rounded-xl border flex items-center justify-between gap-3 cursor-pointer transition-all select-none my-1 ${
-                              msg.isMe
-                                ? 'bg-blue-600/40 hover:bg-blue-600/60 border-blue-300/40 text-white'
-                                : 'bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-900'
-                            }`}
-                            title="Click to download file"
-                          >
-                            <div className="flex items-center gap-2.5 min-w-0">
-                              <div className="w-8 h-8 rounded-lg bg-blue-500 text-white font-bold text-xs flex items-center justify-center shrink-0 shadow-2xs">
-                                <FileText className="w-4 h-4" />
-                              </div>
-                              <div className="min-w-0">
-                                <p className="text-xs font-bold truncate">{msg.attachment.name}</p>
-                                <p className={`text-[10px] ${msg.isMe ? 'text-blue-100' : 'text-slate-400'}`}>
-                                  {formatFileSize(msg.attachment.size)} • Click to download
-                                </p>
-                              </div>
-                            </div>
-                            <Download className="w-3.5 h-3.5 shrink-0 opacity-80" />
-                          </div>
-                        )}
+                  )}
+
+                  {/* Message Body & In-Bubble Bottom-Right Timestamp */}
+                  {isVoice ? (
+                    <div>
+                      <VoiceMessagePlayer msg={msg} />
+                      <div className="flex justify-end items-center gap-1 mt-0.5">
+                        <span className={`text-[10px] font-medium inline-flex items-center gap-1 ${isMsgMe ? 'text-blue-100' : 'text-slate-400'}`}>
+                          <span>{msg.timestamp}</span>
+                          {isMsgMe && (
+                            <svg viewBox="0 0 16 11" className="w-3.5 h-2.5 text-blue-200 fill-current shrink-0">
+                              <path d="M11.07 0.93a0.75 0.75 0 0 0-1.06 0L5.36 5.58 3.49 3.71a0.75 0.75 0 0 0-1.06 1.06l2.4 2.4a0.75 0.75 0 0 0 1.06 0l5.18-5.18a0.75 0.75 0 0 0 0-1.06zM14.07 0.93a0.75 0.75 0 0 0-1.06 0L8.36 5.58l0.53 0.53 4.65-4.65a0.75 0.75 0 0 0 0-1.06z" />
+                            </svg>
+                          )}
+                        </span>
                       </div>
-                    )}
-
-                    {msg.text && (
-                      <span className="text-[13.5px] font-normal break-words whitespace-pre-wrap select-text">
-                        {msg.text}
-                      </span>
-                    )}
-
-                    {/* WhatsApp-style floating bottom-right timestamp */}
-                    <span className={`text-[10px] font-medium ml-2.5 float-right mt-1.5 select-none inline-flex items-center gap-0.5 ${
-                      msg.isMe ? 'text-blue-100' : 'text-slate-400'
-                    }`}>
-                      <span>{msg.timestamp}</span>
-                      {msg.isMe && (
-                        <svg viewBox="0 0 16 11" className="w-3.5 h-2.5 text-blue-200 fill-current ml-0.5">
-                          <path d="M11.07 0.93a0.75 0.75 0 0 0-1.06 0L5.36 5.58 3.49 3.71a0.75 0.75 0 0 0-1.06 1.06l2.4 2.4a0.75 0.75 0 0 0 1.06 0l5.18-5.18a0.75 0.75 0 0 0 0-1.06zM14.07 0.93a0.75 0.75 0 0 0-1.06 0L8.36 5.58l0.53 0.53 4.65-4.65a0.75 0.75 0 0 0 0-1.06z" />
-                        </svg>
+                    </div>
+                  ) : (
+                    <div className="leading-relaxed">
+                      {/* Render Real Attachment if present */}
+                      {msg.attachment && (
+                        <div className="mb-2">
+                          {msg.attachment.type.startsWith('image/') || /\.(png|jpe?g|gif|webp|svg)$/i.test(msg.attachment.name) ? (
+                            <div 
+                              onClick={() => setPreviewMedia({ url: msg.attachment!.url, name: msg.attachment!.name, type: 'image' })}
+                              className="cursor-pointer group relative overflow-hidden rounded-xl border border-black/10 shadow-2xs my-1 max-w-xs"
+                              title="Click to view full image"
+                            >
+                              <img 
+                                src={msg.attachment.url} 
+                                alt={msg.attachment.name} 
+                                className="w-full max-h-56 object-cover group-hover:scale-[1.02] transition-transform duration-200" 
+                              />
+                              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/25 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
+                                <span className="px-2.5 py-1 bg-black/75 text-white text-[11px] font-bold rounded-lg flex items-center gap-1.5 backdrop-blur-xs">
+                                  <Eye className="w-3.5 h-3.5" />
+                                  Click to preview
+                                </span>
+                              </div>
+                            </div>
+                          ) : msg.attachment.type === 'application/pdf' || msg.attachment.name.toLowerCase().endsWith('.pdf') ? (
+                            <div 
+                              onClick={() => handleOpenAttachment(msg.attachment!)}
+                              className={`p-2.5 rounded-xl border flex items-center justify-between gap-3 cursor-pointer transition-all select-none my-1 ${
+                                msg.isMe
+                                  ? 'bg-blue-600/40 hover:bg-blue-600/60 border-blue-300/40 text-white'
+                                  : 'bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-900'
+                              }`}
+                              title="Click to preview PDF"
+                            >
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                <div className="w-8 h-8 rounded-lg bg-rose-500 text-white font-black text-[10px] flex items-center justify-center shrink-0 shadow-2xs">
+                                  PDF
+                                </div>
+                                <div className="min-w-0">
+                                  <p className="text-xs font-bold truncate">{msg.attachment.name}</p>
+                                  <p className={`text-[10px] ${msg.isMe ? 'text-blue-100' : 'text-slate-400'}`}>
+                                    {formatFileSize(msg.attachment.size)} • Click to preview
+                                  </p>
+                                </div>
+                              </div>
+                              <ExternalLink className="w-3.5 h-3.5 shrink-0 opacity-80" />
+                            </div>
+                          ) : (
+                            <div 
+                              onClick={() => handleOpenAttachment(msg.attachment!)}
+                              className={`p-2.5 rounded-xl border flex items-center justify-between gap-3 cursor-pointer transition-all select-none my-1 ${
+                                isMsgMe
+                                  ? 'bg-blue-600/40 hover:bg-blue-600/60 border-blue-300/40 text-white'
+                                  : 'bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-900'
+                              }`}
+                              title="Click to download file"
+                            >
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                <div className="w-8 h-8 rounded-lg bg-blue-500 text-white font-bold text-xs flex items-center justify-center shrink-0 shadow-2xs">
+                                  <FileText className="w-4 h-4" />
+                                </div>
+                                <div className="min-w-0">
+                                  <p className="text-xs font-bold truncate">{msg.attachment.name}</p>
+                                  <p className={`text-[10px] ${isMsgMe ? 'text-blue-100' : 'text-slate-400'}`}>
+                                    {formatFileSize(msg.attachment.size)} • Click to download
+                                  </p>
+                                </div>
+                              </div>
+                              <Download className="w-3.5 h-3.5 shrink-0 opacity-80" />
+                            </div>
+                          )}
+                        </div>
                       )}
-                    </span>
-                  </div>
-                )}
-              </div>
+
+                      {msg.text && (
+                        <span className="text-[13.5px] font-normal break-words whitespace-pre-wrap select-text">
+                          {msg.text}
+                        </span>
+                      )}
+
+                      {/* WhatsApp-style floating bottom-right timestamp and persistent double status ticks */}
+                      {renderTimestampAndTicks(msg, isMsgMe)}
+                    </div>
+                  )}
+
+                  {/* Dropdown Menu attached to message bubble */}
+                  {renderActionMenu(msg, isMsgMe, isLastTwo)}
+                </div>
+              )}
             </div>
+            </React.Fragment>
           );
         })}
         <div ref={chatEndRef} />
@@ -840,6 +1044,63 @@ const TeamChat: React.FC<TeamChatProps> = ({
           )}
         </div>
       </div>
+
+      {/* Confirmation Modal for "Delete for Everyone" */}
+      {confirmDeleteEveryoneMsg && (
+        <div 
+          className="fixed inset-0 z-[10000] bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150"
+          onClick={() => setConfirmDeleteEveryoneMsg(null)}
+        >
+          <div 
+            className="w-full max-w-sm bg-white rounded-3xl shadow-2xl border border-slate-200/90 p-5 sm:p-6 text-center animate-in zoom-in-95 duration-150"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="w-12 h-12 rounded-2xl bg-rose-50 text-rose-600 border border-rose-100 flex items-center justify-center mx-auto mb-3.5 shadow-2xs">
+              <Trash2 className="w-6 h-6" />
+            </div>
+
+            <h3 className="text-base font-black text-slate-900 tracking-tight mb-1.5">
+              Delete for everyone?
+            </h3>
+
+            <p className="text-xs text-slate-500 font-medium mb-3.5 leading-relaxed">
+              This message will be deleted.
+            </p>
+
+            {/* Message preview snippet */}
+            <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-2.5 mb-4 text-xs text-slate-700 italic truncate text-left">
+              <span className="font-bold text-slate-900 not-italic mr-1.5">
+                {confirmDeleteEveryoneMsg.senderName}:
+              </span>
+              "{confirmDeleteEveryoneMsg.text || (confirmDeleteEveryoneMsg.attachment ? confirmDeleteEveryoneMsg.attachment.name : 'Voice message')}"
+            </div>
+
+            {/* Actions */}
+            <div className="flex items-center gap-2.5 justify-end">
+              <button
+                type="button"
+                onClick={() => setConfirmDeleteEveryoneMsg(null)}
+                className="flex-1 py-2.5 px-4 rounded-xl border border-slate-200 hover:border-slate-300 bg-white hover:bg-slate-100 text-slate-700 font-bold text-xs transition-all cursor-pointer select-none active:scale-[0.98]"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                id="btn-confirm-delete-everyone"
+                onClick={() => {
+                  if (confirmDeleteEveryoneMsg) {
+                    onDeleteMessage?.(confirmDeleteEveryoneMsg.id, 'forEveryone');
+                    setConfirmDeleteEveryoneMsg(null);
+                  }
+                }}
+                className="flex-1 py-2.5 px-4 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs transition-all cursor-pointer shadow-xs hover:shadow-sm select-none active:scale-[0.98]"
+              >
+                Delete for Everyone
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Lightbox / Media Preview Modal */}
       {previewMedia && (

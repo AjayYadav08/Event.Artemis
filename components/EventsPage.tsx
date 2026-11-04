@@ -691,6 +691,13 @@ export const EVENTS_MOCK: CampusEvent[] = [
   }
 ];
 
+// Helper to produce mock message ISO dates offset from now
+const getMockDate = (daysAgo: number) => {
+  const d = new Date();
+  d.setDate(d.getDate() - daysAgo);
+  return d.toISOString();
+};
+
 export const MOCK_TEAMS: Team[] = [
   {
     id: 't1',
@@ -712,12 +719,12 @@ export const MOCK_TEAMS: Team[] = [
       { id: 'p1', name: 'Zoe Kravitz', role: 'Backend', skills: ['FastAPI'], avatar: 'https://i.pravatar.cc/150?img=32' }
     ],
     messages: [
-      { id: '1', senderId: 'm2', senderName: 'Sarah', text: 'Hey team! Just finished the baseline model.', timestamp: '10:30 AM', isMe: false },
-      { id: '2', senderId: 'me', senderName: 'Ajay', text: 'Awesome! I am working on the frontend integration.', timestamp: '10:35 AM', isMe: true },
-      { id: '3', senderId: 'p4', senderName: 'Timothee', text: 'I found a better dataset for the fine-tuning.', timestamp: '10:40 AM', isMe: false },
-      { id: '4', senderId: 'p1', senderName: 'Zoe', text: 'Great! Should I start setting up the API endpoints?', timestamp: '10:42 AM', isMe: false },
-      { id: '5', senderId: 'me', senderName: 'Ajay', text: 'Yes, Zoe. Let\'s use FastAPI for that.', timestamp: '10:45 AM', isMe: true },
-      { id: '6', senderId: 'p1', senderName: 'Zoe', text: '🎙️ Voice message (0:04)', timestamp: '10:48 AM', isMe: false, audioDuration: 4 }
+      { id: '1', senderId: 'm2', senderName: 'Sarah', text: 'Hey team! Just finished the baseline model.', timestamp: '10:30 AM', date: getMockDate(3), isMe: false },
+      { id: '2', senderId: 'me', senderName: 'Ajay', text: 'Awesome! I am working on the frontend integration.', timestamp: '10:35 AM', date: getMockDate(3), isMe: true },
+      { id: '3', senderId: 'p4', senderName: 'Timothee', text: 'I found a better dataset for the fine-tuning.', timestamp: '10:40 AM', date: getMockDate(1), isMe: false },
+      { id: '4', senderId: 'p1', senderName: 'Zoe', text: 'Great! Should I start setting up the API endpoints?', timestamp: '10:42 AM', date: getMockDate(1), isMe: false },
+      { id: '5', senderId: 'me', senderName: 'Ajay', text: 'Yes, Zoe. Let\'s use FastAPI for that.', timestamp: '10:45 AM', date: getMockDate(0), isMe: true },
+      { id: '6', senderId: 'p1', senderName: 'Zoe', text: '🎙️ Voice message (0:04)', timestamp: '10:48 AM', date: getMockDate(0), isMe: false, audioDuration: 4 }
     ]
   },
   {
@@ -741,11 +748,11 @@ export const MOCK_TEAMS: Team[] = [
       { id: 'p2', name: 'Robert Pattinson', role: 'DevOps', skills: ['Docker'], avatar: 'https://i.pravatar.cc/150?img=11' }
     ],
     messages: [
-      { id: '1', senderId: 'u1', senderName: 'Mike', text: 'The latency on the current bridge is too high.', timestamp: '11:00 AM', isMe: false },
-      { id: '2', senderId: 'm3', senderName: 'John', text: 'I am optimizing the data ingestion pipeline.', timestamp: '11:05 AM', isMe: false },
-      { id: '3', senderId: 'me', senderName: 'Ajay', text: 'Mike, check the Rust implementation. It should be sub-ms.', timestamp: '11:10 AM', isMe: true },
-      { id: '4', senderId: 'u2', senderName: 'Elena', text: 'Are we following the arbitrage limit rules?', timestamp: '11:15 AM', isMe: false },
-      { id: '5', senderId: 'p2', senderName: 'Robert', text: 'Infrastructure is ready for load testing.', timestamp: '11:20 AM', isMe: false }
+      { id: '1', senderId: 'u1', senderName: 'Mike', text: 'The latency on the current bridge is too high.', timestamp: '11:00 AM', date: getMockDate(1), isMe: false },
+      { id: '2', senderId: 'm3', senderName: 'John', text: 'I am optimizing the data ingestion pipeline.', timestamp: '11:05 AM', date: getMockDate(1), isMe: false },
+      { id: '3', senderId: 'me', senderName: 'Ajay', text: 'Mike, check the Rust implementation. It should be sub-ms.', timestamp: '11:10 AM', date: getMockDate(0), isMe: true },
+      { id: '4', senderId: 'u2', senderName: 'Elena', text: 'Are we following the arbitrage limit rules?', timestamp: '11:15 AM', date: getMockDate(0), isMe: false },
+      { id: '5', senderId: 'p2', senderName: 'Robert', text: 'Infrastructure is ready for load testing.', timestamp: '11:20 AM', date: getMockDate(0), isMe: false }
     ]
   },
   {
@@ -761,9 +768,9 @@ export const MOCK_TEAMS: Team[] = [
       { id: 'p4', name: 'Timothee Chalamet', role: 'Frontend', skills: ['Tailwind'], avatar: 'https://i.pravatar.cc/150?img=18' }
     ],
     messages: [
-      { id: '1', senderId: 'p3', senderName: 'Lily', text: 'Finished the design for the landing page!', timestamp: '09:00 AM', isMe: false },
-      { id: '2', senderId: 'me', senderName: 'Ajay', text: 'Looks clean! Can you export the assets?', timestamp: '09:10 AM', isMe: true },
-      { id: '3', senderId: 'p4', senderName: 'Timothee', text: 'I am starting on the hero section components.', timestamp: '09:15 AM', isMe: false }
+      { id: '1', senderId: 'p3', senderName: 'Lily', text: 'Finished the design for the landing page!', timestamp: '09:00 AM', date: getMockDate(1), isMe: false },
+      { id: '2', senderId: 'me', senderName: 'Ajay', text: 'Looks clean! Can you export the assets?', timestamp: '09:10 AM', date: getMockDate(0), isMe: true },
+      { id: '3', senderId: 'p4', senderName: 'Timothee', text: 'I am starting on the hero section components.', timestamp: '09:15 AM', date: getMockDate(0), isMe: false }
     ]
   },
   {
@@ -780,10 +787,10 @@ export const MOCK_TEAMS: Team[] = [
       { id: 'u1', name: 'Mike Ross', role: 'Network Eng', skills: ['Cisco'], avatar: 'https://i.pravatar.cc/150?img=33' }
     ],
     messages: [
-      { id: '1', senderId: 'm4', senderName: 'Alice', text: 'Found a SQL injection vulnerability in the demo app.', timestamp: '02:00 PM', isMe: false },
-      { id: '2', senderId: 'me', senderName: 'Ajay', text: 'Patching it now. Sarah, check the middleware.', timestamp: '02:10 PM', isMe: true },
-      { id: '3', senderId: 'm2', senderName: 'Sarah', text: 'Middleware is secure. The input was not sanitized.', timestamp: '02:15 PM', isMe: false },
-      { id: '4', senderId: 'u1', senderName: 'Mike', text: 'Traffic spikes detected. Possible DDoS test?', timestamp: '02:20 PM', isMe: false }
+      { id: '1', senderId: 'm4', senderName: 'Alice', text: 'Found a SQL injection vulnerability in the demo app.', timestamp: '02:00 PM', date: getMockDate(1), isMe: false },
+      { id: '2', senderId: 'me', senderName: 'Ajay', text: 'Patching it now. Sarah, check the middleware.', timestamp: '02:10 PM', date: getMockDate(0), isMe: true },
+      { id: '3', senderId: 'm2', senderName: 'Sarah', text: 'Middleware is secure. The input was not sanitized.', timestamp: '02:15 PM', date: getMockDate(0), isMe: false },
+      { id: '4', senderId: 'u1', senderName: 'Mike', text: 'Traffic spikes detected. Possible DDoS test?', timestamp: '02:20 PM', date: getMockDate(0), isMe: false }
     ]
   }
 ];
@@ -837,6 +844,8 @@ export const SAMPLE_JOIN_REQUESTS: Record<string, JoinRequest[]> = {
     {
       id: 'req-sample-1',
       teamId: 't1',
+      teamName: 'Neural Knights',
+      hackathon: 'Global AI Hackathon',
       userId: 'u-marcus',
       userName: 'Marcus Vance',
       userAvatar: 'https://i.pravatar.cc/150?img=60',
@@ -847,12 +856,56 @@ export const SAMPLE_JOIN_REQUESTS: Record<string, JoinRequest[]> = {
     {
       id: 'req-sample-2',
       teamId: 't1',
+      teamName: 'Neural Knights',
+      hackathon: 'Global AI Hackathon',
       userId: 'u-ananya',
       userName: 'Ananya Sharma',
       userAvatar: 'https://i.pravatar.cc/150?img=47',
       message: 'Hi team! Full-stack engineer with 3+ hackathon wins. Experienced in Next.js & FastAPI backend architectures.',
       timestamp: 'Today, 3:40 PM',
       status: 'Pending'
+    }
+  ],
+  tp2: [
+    {
+      id: 'my-req-1',
+      teamId: 'tp2',
+      teamName: 'Design Dynamos',
+      hackathon: 'Global AI Hackathon',
+      userId: 'me',
+      userName: 'Ajay Yadav',
+      userAvatar: 'https://i.pravatar.cc/150?img=12',
+      message: 'Hi Elena! I would love to join Design Dynamos to collaborate on Tailwind and UI components.',
+      timestamp: 'Today, 11:20 AM',
+      status: 'Pending'
+    }
+  ],
+  t2: [
+    {
+      id: 'my-req-2',
+      teamId: 't2',
+      teamName: 'Bit Wizards',
+      hackathon: 'Algo-Trading Sprint',
+      userId: 'me',
+      userName: 'Ajay Yadav',
+      userAvatar: 'https://i.pravatar.cc/150?img=12',
+      message: 'Hey team! Experienced in low-latency C++ and data ingestion pipelines.',
+      timestamp: 'Yesterday, 04:15 PM',
+      status: 'Accepted'
+    }
+  ],
+  t4: [
+    {
+      id: 'my-req-3',
+      teamId: 't4',
+      teamName: 'Cyber Sentinels',
+      hackathon: 'Cyber Security Gauntlet',
+      userId: 'me',
+      userName: 'Ajay Yadav',
+      userAvatar: 'https://i.pravatar.cc/150?img=12',
+      message: 'Hey Alice! Interested in assisting with authentication and network pen-testing.',
+      timestamp: '2 days ago',
+      status: 'Rejected'
     }
   ]
 };
@@ -917,7 +970,17 @@ export const EventsPage: React.FC<EventsPageProps> = ({
   const [activeTeam, setActiveTeam] = useState<Team | null>(MOCK_TEAMS[0] || null);
   const [showTeamMembers, setShowTeamMembers] = useState(false);
   const [showCreateTeamForm, setShowCreateTeamForm] = useState(false);
-  const [showJoinTeamView, setShowJoinTeamView] = useState(false);
+  const [showJoinTeamView, setShowJoinTeamView] = useState(true);
+
+  // Whenever the user opens the Teams section, Discover Teams must open by default
+  useEffect(() => {
+    if (showTeamsView) {
+      setShowJoinTeamView(true);
+      setShowCreateTeamForm(false);
+      setShowTeamMembers(false);
+      setPreviewingTeam(null);
+    }
+  }, [showTeamsView]);
 
   useEffect(() => {
     onTeamsViewToggle?.(showTeamsView);
@@ -932,7 +995,7 @@ export const EventsPage: React.FC<EventsPageProps> = ({
   const [chatInput, setChatInput] = useState('');
   const [teamMessages, setTeamMessages] = useState<Record<string, ChatMessage[]>>(() => {
     try {
-      const saved = localStorage.getItem('artemis_team_messages_v3');
+      const saved = localStorage.getItem('artemis_team_messages_v4');
       if (saved) {
         const parsed = JSON.parse(saved);
         if (parsed && typeof parsed === 'object') return parsed;
@@ -944,7 +1007,7 @@ export const EventsPage: React.FC<EventsPageProps> = ({
 
   useEffect(() => {
     try {
-      localStorage.setItem('artemis_team_messages_v3', JSON.stringify(teamMessages));
+      localStorage.setItem('artemis_team_messages_v4', JSON.stringify(teamMessages));
     } catch (e) {
       console.warn('Could not persist messages', e);
     }
@@ -957,12 +1020,15 @@ export const EventsPage: React.FC<EventsPageProps> = ({
   ) => {
     const textToSend = customText !== undefined ? customText : chatInput;
     if ((!textToSend.trim() && !attachmentData) || !activeTeam) return;
+    const now = new Date();
     const newMsg: ChatMessage = {
       id: `msg_${Date.now()}`,
       senderId: 'me',
       senderName: 'Ajay',
       text: textToSend.trim(),
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      timestamp: now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      date: now.toISOString(),
+      createdAt: now.getTime(),
       isMe: true,
       audioUrl: audioData?.url,
       audioDuration: audioData?.duration,
@@ -971,6 +1037,53 @@ export const EventsPage: React.FC<EventsPageProps> = ({
     setTeamMessages(prev => ({ ...prev, [activeTeam.id]: [...(prev[activeTeam.id] || []), newMsg] }));
     setChatInput('');
   }, [chatInput, activeTeam]);
+
+  const handleDeleteMessage = useCallback((
+    teamId: string,
+    messageId: string,
+    deleteType: 'forMe' | 'forEveryone',
+    userId: string = 'me'
+  ) => {
+    setTeamMessages(prev => {
+      const currentMsgs = prev[teamId] || [];
+      if (deleteType === 'forEveryone') {
+        // Replace with deleted-message placeholder for all participants
+        return {
+          ...prev,
+          [teamId]: currentMsgs.map(m => {
+            if (m.id === messageId) {
+              return {
+                ...m,
+                deletedForEveryone: true,
+                text: 'This message was deleted',
+                audioUrl: undefined,
+                audioDuration: undefined,
+                attachment: undefined
+              };
+            }
+            return m;
+          })
+        };
+      } else {
+        // Delete for Me: mark as deleted for the specified user view
+        return {
+          ...prev,
+          [teamId]: currentMsgs.map(m => {
+            if (m.id === messageId) {
+              const currentDeletedUsers = m.deletedForUsers || [];
+              return {
+                ...m,
+                deletedForUsers: currentDeletedUsers.includes(userId)
+                  ? currentDeletedUsers
+                  : [...currentDeletedUsers, userId]
+              };
+            }
+            return m;
+          })
+        };
+      }
+    });
+  }, []);
 
   // Keep the page scroll container at top when a team is selected so the team header remains visible
   useEffect(() => {
@@ -1029,11 +1142,13 @@ export const EventsPage: React.FC<EventsPageProps> = ({
       const newRequest: JoinRequest = {
         id: `req_${Date.now()}`,
         teamId: team.id,
+        teamName: team.name,
+        hackathon: team.hackathon,
         userId: 'me',
         userName: 'Ajay Yadav',
         userAvatar: 'https://i.pravatar.cc/150?img=12',
         message: joinRequestMessage.trim() || `Hi, I'd like to join ${team.name}!`,
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        timestamp: `Today, ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`,
         status: 'Pending'
       };
       
@@ -1085,21 +1200,42 @@ export const EventsPage: React.FC<EventsPageProps> = ({
     }));
   };
 
-  // Use a ref to throttle scroll state updates to prevent frame drops
-  const scrollTimeoutRef = useRef<number | null>(null);
+  // Immediate scroll detection with threshold for compact card layout
   const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
-    const scrollTop = e.currentTarget.scrollTop;
-    if (scrollTimeoutRef.current === null) {
-      scrollTimeoutRef.current = window.setTimeout(() => {
-        setShowBackToTop(scrollTop > 300);
-        scrollTimeoutRef.current = null;
-      }, 100); // 100ms throttle for state update
+    // If on Teams view, button must never be shown
+    if (showTeamsView) {
+      setShowBackToTop(false);
+      return;
     }
-  }, []);
+
+    const currentScrollTop = e.currentTarget.scrollTop;
+
+    // Immediately hide when user scrolls near the top; show when scrolled down
+    if (currentScrollTop <= 100) {
+      setShowBackToTop(false);
+    } else if (currentScrollTop > 180) {
+      setShowBackToTop(true);
+    }
+  }, [showTeamsView]);
 
   const scrollToTop = useCallback(() => {
+    setShowBackToTop(false);
     scrollContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
   }, []);
+
+  // Reset state on unmount
+  useEffect(() => {
+    return () => {
+      setShowBackToTop(false);
+    };
+  }, []);
+
+  // Ensure button is immediately hidden when entering Teams view or exploring an event
+  useEffect(() => {
+    if (showTeamsView || exploringEvent) {
+      setShowBackToTop(false);
+    }
+  }, [showTeamsView, exploringEvent]);
   
   // Removed the 30-second top-level state interval. 
   // Calling setNow(new Date()) every 30s was forcing the entire EventsPage 
@@ -1111,6 +1247,7 @@ export const EventsPage: React.FC<EventsPageProps> = ({
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [showPeersModal, setShowPeersModal] = useState(false);
   const [invitedPeersMap, setInvitedPeersMap] = useState<Record<string, Set<string>>>({});
+  const [showOnlyInterested, setShowOnlyInterested] = useState(false);
 
   const isRegistered = exploringEvent ? registeredIds.has(exploringEvent.id) : false;
   const isInterested = exploringEvent ? interestedIds.has(exploringEvent.id) : false;
@@ -1174,7 +1311,8 @@ export const EventsPage: React.FC<EventsPageProps> = ({
         : selectedCategories.includes(e.category);
       const matchesSearch = searchQuery.trim() === '' ? true : e.title.toLowerCase().includes(searchQuery.toLowerCase());
       const matchesDate = selectedDate ? e.dayOfMonth === selectedDate : true;
-      return matchesCategory && matchesSearch && matchesDate;
+      const matchesInterested = showOnlyInterested ? interestedIds.has(e.id) : true;
+      return matchesCategory && matchesSearch && matchesDate && matchesInterested;
     }).sort((a, b) => {
       const getPriority = (id: string) => {
         if (registeredIds.has(id) || interestedIds.has(id)) return 2;
@@ -1190,7 +1328,7 @@ export const EventsPage: React.FC<EventsPageProps> = ({
       if (!dateA || !dateB) return 0;
       return dateA.getTime() - dateB.getTime();
     });
-  }, [events, selectedCategories, activeFilter, searchQuery, selectedDate, registeredIds, interestedIds, notInterestedIds]);
+  }, [events, selectedCategories, activeFilter, searchQuery, selectedDate, registeredIds, interestedIds, notInterestedIds, showOnlyInterested]);
 
   const categories = useMemo(() => {
     const nearDeadline = filteredData.filter(e => {
@@ -1245,15 +1383,15 @@ export const EventsPage: React.FC<EventsPageProps> = ({
   }, [onEventView]);
 
   return (
-    <div 
-      id="events-page-scroll-container"
-      ref={scrollContainerRef}
-      onScroll={handleScroll}
-      style={{ willChange: 'transform' }}
-      className={`flex-1 flex flex-col transition-all ${
-        showTeamsView ? 'overflow-hidden w-full h-full' : 'pb-32 overflow-y-auto max-w-7xl mx-auto w-full h-full'
-      } ${(!showTeamsView && isCalendarOpen) ? 'pr-[320px]' : ''} relative`}
-    >
+    <div className="relative flex-1 min-w-0 w-full h-full overflow-hidden flex flex-col">
+      <div 
+        id="events-page-scroll-container"
+        ref={scrollContainerRef}
+        onScroll={handleScroll}
+        className={`flex-1 flex flex-col transition-all ${
+          showTeamsView ? 'overflow-hidden w-full h-full' : 'pb-32 overflow-y-auto max-w-7xl mx-auto w-full h-full'
+        } ${(!showTeamsView && isCalendarOpen) ? 'pr-[320px]' : ''} relative`}
+      >
       {/* Background Decorative Accents */}
       {!showTeamsView && (
         <>
@@ -1284,12 +1422,14 @@ export const EventsPage: React.FC<EventsPageProps> = ({
           setActiveFilter={setActiveFilter}
           activeNav={activeNav}
           setActiveNav={setActiveNav}
+          showOnlyInterested={showOnlyInterested}
+          setShowOnlyInterested={setShowOnlyInterested}
         />
       )}
 
       {/* 2. Team Portal View */}
       {showTeamsView && (
-        <div className="flex-1 min-h-0 flex flex-col w-full h-full overflow-hidden">
+        <div className="flex-1 min-h-0 flex flex-col w-full h-full overflow-hidden bg-white">
           <TeamPortal 
             availableEvents={events.length > 0 ? events : EVENTS_MOCK}
             activeTeam={activeTeam}
@@ -1318,6 +1458,7 @@ export const EventsPage: React.FC<EventsPageProps> = ({
             ratingFeedback={ratingFeedback}
             handleSubmitRating={handleSubmitRating}
             teamMessages={teamMessages}
+            handleDeleteMessage={handleDeleteMessage}
             chatInput={chatInput}
             setChatInput={setChatInput}
             sendMessage={sendMessage}
@@ -1362,6 +1503,7 @@ export const EventsPage: React.FC<EventsPageProps> = ({
             onClearAllFilters={() => {
               setSelectedCategories([]);
               setSelectedStatuses([]);
+              setShowOnlyInterested(false);
             }}
             closingSoonEvents={categories.nearDeadline}
             upcomingEvents={categories.upcoming}
@@ -1407,8 +1549,6 @@ export const EventsPage: React.FC<EventsPageProps> = ({
         PEERS_MOCK={PEERS_MOCK}
       />
 
-      <BackToTop showBackToTop={showBackToTop} scrollToTop={scrollToTop} />
-
       {/* Request Sent Toast */}
       <div className={`fixed bottom-8 left-1/2 -translate-x-1/2 z-[2500] transition-all  ${
         requestSentToast ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 pointer-events-none'
@@ -1424,5 +1564,18 @@ export const EventsPage: React.FC<EventsPageProps> = ({
         </div>
       </div>
     </div>
-  );
+
+    {/* Centered Floating Back to Top Button aligned with Events page actual content boundaries */}
+    {!showTeamsView && !exploringEvent && (
+      <div className={`absolute bottom-6 sm:bottom-7 inset-x-0 pointer-events-none max-w-7xl mx-auto w-full z-[9999] flex justify-center ${
+        isCalendarOpen ? 'pr-[320px]' : ''
+      }`}>
+        <BackToTop 
+          showBackToTop={showBackToTop} 
+          scrollToTop={scrollToTop} 
+        />
+      </div>
+    )}
+  </div>
+);
 };

@@ -39,40 +39,37 @@ export const EventsFeedSkeleton: React.FC = () => {
         </div>
 
         {/* 3 Event Card Skeletons */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5 sm:gap-4 w-full">
           {[1, 2, 3].map((idx) => (
             <div
               key={`feed-skeleton-closing-${idx}`}
-              className="bg-white rounded-3xl border border-slate-200/90 overflow-hidden shadow-2xs flex flex-col shimmer-card"
+              className="bg-white rounded-2xl border border-slate-200/90 p-3.5 sm:p-4 shadow-2xs flex flex-col justify-between shimmer-card space-y-2.5"
             >
-              {/* Poster Banner */}
-              <div className="w-full h-44 bg-slate-200/80 shimmer-animated relative">
-                <div className="absolute top-3.5 left-3.5 h-6 w-20 bg-white/70 backdrop-blur-xs rounded-full" />
-                <div className="absolute top-3.5 right-3.5 h-7 w-7 bg-white/70 backdrop-blur-xs rounded-full" />
+              {/* Top Row Skeleton */}
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 rounded-xl bg-slate-200 shimmer-animated shrink-0" />
+                <div className="flex-1 space-y-1.5 min-w-0">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="h-4 w-32 bg-slate-200 rounded shimmer-animated" />
+                    <div className="h-4 w-12 bg-slate-100 rounded shimmer-animated shrink-0" />
+                  </div>
+                  <div className="h-3 w-24 bg-slate-100 rounded shimmer-animated" />
+                </div>
               </div>
 
-              {/* Card Body */}
-              <div className="p-5 flex-1 flex flex-col justify-between space-y-4">
-                <div className="space-y-2.5">
-                  <div className="h-5 w-3/4 bg-slate-200 rounded shimmer-animated" />
-                  <div className="h-3.5 w-1/2 bg-slate-100 rounded shimmer-animated" />
-                </div>
+              {/* Middle Row Skeleton */}
+              <div className="grid grid-cols-2 gap-2 my-1">
+                <div className="h-10 bg-slate-50 rounded-xl border border-slate-100 shimmer-animated" />
+                <div className="h-10 bg-slate-50 rounded-xl border border-slate-100 shimmer-animated" />
+              </div>
 
-                <div className="space-y-2 pt-2 border-t border-slate-100">
-                  <div className="flex items-center justify-between">
-                    <div className="h-3.5 w-24 bg-slate-100 rounded shimmer-animated" />
-                    <div className="h-3.5 w-16 bg-slate-100 rounded shimmer-animated" />
-                  </div>
+              {/* Bottom Row Skeleton */}
+              <div className="flex items-center justify-between pt-2.5 border-t border-slate-100">
+                <div className="flex items-center gap-1.5">
+                  <div className="w-6 h-6 rounded-lg bg-slate-200 shimmer-animated shrink-0" />
+                  <div className="h-3 w-16 bg-slate-100 rounded shimmer-animated" />
                 </div>
-
-                {/* Footer Row */}
-                <div className="flex items-center justify-between pt-2">
-                  <div className="flex items-center gap-2">
-                    <div className="w-7 h-7 rounded-full bg-slate-200 shimmer-animated" />
-                    <div className="h-3 w-20 bg-slate-100 rounded shimmer-animated" />
-                  </div>
-                  <div className="h-8 w-24 bg-blue-100/70 rounded-xl shimmer-animated" />
-                </div>
+                <div className="h-7.5 w-20 bg-slate-200 rounded-xl shimmer-animated shrink-0" />
               </div>
             </div>
           ))}
@@ -87,22 +84,37 @@ export const EventsFeedSkeleton: React.FC = () => {
           <div className="h-5 w-8 bg-slate-100 rounded-full shimmer-animated" />
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5 sm:gap-4 w-full">
           {[4, 5, 6].map((idx) => (
             <div
               key={`feed-skeleton-upcoming-${idx}`}
-              className="bg-white rounded-3xl border border-slate-200/90 overflow-hidden shadow-2xs flex flex-col shimmer-card"
+              className="bg-white rounded-2xl border border-slate-200/90 p-3.5 sm:p-4 shadow-2xs flex flex-col justify-between shimmer-card space-y-2.5"
             >
-              <div className="w-full h-44 bg-slate-200/70 shimmer-animated" />
-              <div className="p-5 flex-1 flex flex-col justify-between space-y-4">
-                <div className="space-y-2.5">
-                  <div className="h-5 w-2/3 bg-slate-200 rounded shimmer-animated" />
-                  <div className="h-3.5 w-1/3 bg-slate-100 rounded shimmer-animated" />
+              {/* Top Row Skeleton */}
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 rounded-xl bg-slate-200 shimmer-animated shrink-0" />
+                <div className="flex-1 space-y-1.5 min-w-0">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="h-4 w-28 bg-slate-200 rounded shimmer-animated" />
+                    <div className="h-4 w-12 bg-slate-100 rounded shimmer-animated shrink-0" />
+                  </div>
+                  <div className="h-3 w-20 bg-slate-100 rounded shimmer-animated" />
                 </div>
-                <div className="flex items-center justify-between pt-2 border-t border-slate-100">
-                  <div className="h-3.5 w-28 bg-slate-100 rounded shimmer-animated" />
-                  <div className="h-8 w-24 bg-slate-100 rounded-xl shimmer-animated" />
+              </div>
+
+              {/* Middle Row Skeleton */}
+              <div className="grid grid-cols-2 gap-2 my-1">
+                <div className="h-10 bg-slate-50 rounded-xl border border-slate-100 shimmer-animated" />
+                <div className="h-10 bg-slate-50 rounded-xl border border-slate-100 shimmer-animated" />
+              </div>
+
+              {/* Bottom Row Skeleton */}
+              <div className="flex items-center justify-between pt-2.5 border-t border-slate-100">
+                <div className="flex items-center gap-1.5">
+                  <div className="w-6 h-6 rounded-lg bg-slate-200 shimmer-animated shrink-0" />
+                  <div className="h-3 w-16 bg-slate-100 rounded shimmer-animated" />
                 </div>
+                <div className="h-7.5 w-20 bg-slate-200 rounded-xl shimmer-animated shrink-0" />
               </div>
             </div>
           ))}

@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { UserPlus, X, Check, Search, Send, CheckCircle2, Clock, Users, Target } from 'lucide-react';
 import { Team, JoinRequest } from '../types';
 
@@ -243,8 +243,15 @@ const TeamRequests: React.FC<TeamRequestsProps> = ({
     return CANDIDATE_POOL.filter(u => selectedUserIds.has(u.id));
   }, [selectedUserIds]);
 
+  const scrollRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = 0;
+    }
+  }, [activeTeam.id]);
+
   return (
-    <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6 bg-slate-50/50 max-w-4xl mx-auto w-full no-scrollbar">
+    <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6 bg-slate-50/50 max-w-4xl mx-auto w-full no-scrollbar">
       
       {/* Visual Feedback Confirmation Banner */}
       {successBanner && (
