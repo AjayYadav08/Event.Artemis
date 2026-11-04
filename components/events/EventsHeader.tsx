@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Search, ChevronDown, ChevronUp, ChevronLeft, Check, MessageCircle, Rocket, UserPlus, ArrowLeft, ArrowRight, X, SlidersHorizontal, Heart } from 'lucide-react';
+import { Search, ChevronDown, ChevronUp, ChevronLeft, Check, MessageCircle, Rocket, UserPlus, ArrowLeft, ArrowRight, X, SlidersHorizontal, Heart, FilterX } from 'lucide-react';
 import { Team } from './types';
 import { useTutorial } from '../tutorial/TutorialContext';
 
@@ -268,7 +268,9 @@ const EventsHeader: React.FC<EventsHeaderProps> = ({
                   type="text"
                   placeholder="Search events, hackathons..."
                   className={`w-full h-full bg-white border-2 border-slate-300 hover:border-slate-400 focus:border-[#2563eb] rounded-xl pl-10 ${
-                    searchQuery ? 'pr-[72px]' : 'pr-10'
+                    hasActiveCategoryFilter
+                      ? searchQuery ? 'pr-[104px]' : 'pr-[72px]'
+                      : searchQuery ? 'pr-[72px]' : 'pr-10'
                   } text-sm font-medium text-slate-900 placeholder:text-slate-500 outline-none transition-all duration-150`}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
@@ -277,7 +279,9 @@ const EventsHeader: React.FC<EventsHeaderProps> = ({
                   <button
                     type="button"
                     onClick={() => setSearchQuery('')}
-                    className="absolute right-10 top-1/2 -translate-y-1/2 p-1 rounded-full text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-colors"
+                    className={`absolute ${
+                      hasActiveCategoryFilter ? 'right-[74px]' : 'right-10'
+                    } top-1/2 -translate-y-1/2 p-1 rounded-full text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-all`}
                     aria-label="Clear search"
                   >
                     <X className="w-3.5 h-3.5" />
@@ -285,7 +289,8 @@ const EventsHeader: React.FC<EventsHeaderProps> = ({
                 )}
 
                 {/* Integrated Category Filter Trigger & Dropdown Menu */}
-                <div className="absolute right-2 top-1/2 -translate-y-1/2" ref={categoryRef}>
+                <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1" ref={categoryRef}>
+                  {/* Main Category Filter Button (shifted to the left when clear icon is present) */}
                   <button
                     id="tour-category-filter-btn"
                     type="button"
@@ -305,6 +310,20 @@ const EventsHeader: React.FC<EventsHeaderProps> = ({
                     )}
                   </button>
 
+                  {/* Clear / Reset Active Filters Icon Button (displayed on the right side of active filter controls) */}
+                  {hasActiveCategoryFilter && (
+                    <button
+                      id="tour-clear-filters-btn"
+                      type="button"
+                      onClick={handleClearCategory}
+                      aria-label="Clear active filters"
+                      title="Clear active filters"
+                      className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-all cursor-pointer animate-in fade-in zoom-in-95 duration-150"
+                    >
+                      <FilterX className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+
                   {/* Category Dropdown Menu Card (Preserved interface) */}
                   {isCategoryOpen && (
                     <div className="absolute top-full mt-2.5 right-0 z-50 w-72 bg-white rounded-2xl shadow-xl shadow-slate-900/10 border border-slate-200 p-5 animate-in fade-in zoom-in-95 duration-150">
@@ -319,16 +338,16 @@ const EventsHeader: React.FC<EventsHeaderProps> = ({
                             <div
                               key={opt.id}
                               onClick={() => togglePendingCategory(opt.id)}
-                              className="flex items-center justify-between py-1 px-1 cursor-pointer select-none group"
+                              className="flex items-center justify-between py-1 px-1 cursor-pointer select-none"
                             >
-                              <span className="text-sm font-medium text-slate-900 group-hover:text-blue-600 transition-colors">
+                              <span className="text-sm font-medium text-slate-900">
                                 {opt.label}
                               </span>
                               <div
                                 className={`w-5 h-5 rounded-md border-2 transition-all flex items-center justify-center ${
                                   isChecked
                                     ? 'bg-blue-600 border-blue-600 text-white'
-                                    : 'border-slate-300 bg-white group-hover:border-slate-400'
+                                    : 'border-slate-300 bg-white'
                                 }`}
                               >
                                 {isChecked && <Check className="w-3.5 h-3.5 stroke-[3]" />}

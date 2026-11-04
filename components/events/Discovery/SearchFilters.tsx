@@ -99,7 +99,7 @@ const SearchFilters: React.FC<SearchFiltersProps> = ({
                       className={`w-full flex items-center justify-between px-4 py-3 rounded-2xl text-xs font-bold transition-all ${
                         activeFilter === cat 
                           ? 'bg-blue-50 text-blue-600' 
-                          : 'text-slate-600 hover:bg-slate-50'
+                          : 'text-slate-600'
                       }`}
                     >
                       {cat}
