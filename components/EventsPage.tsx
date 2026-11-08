@@ -11,6 +11,7 @@ import {
   ArrowRight, 
   Ticket, 
   CalendarDays,
+  Calendar as CalendarIcon,
   AlertCircle,
   ArrowUp,
   CalendarCheck,
@@ -78,6 +79,7 @@ import BackToTop from './events/BackToTop';
 import ImageWithFallback from './events/ImageWithFallback';
 import { parseDateTime } from './events/utils';
 import { useEventsData } from './events/useEventsData';
+import { MiniFloatingCalendar } from './MiniFloatingCalendar';
 import { EventsFeedSkeleton, EventsErrorScreen, EventsEmptyScreen } from './events/EventsLoadingScreen';
 
 // -- Mock Helpers & Constants --
@@ -915,7 +917,9 @@ export const SAMPLE_JOIN_REQUESTS: Record<string, JoinRequest[]> = {
 
 interface EventsPageProps {
   selectedDate: number | null;
+  setSelectedDate?: (date: number | null) => void;
   isCalendarOpen: boolean;
+  setIsCalendarOpen?: (open: boolean) => void;
   interestedIds: Set<string>;
   notInterestedIds: Set<string>;
   registeredIds: Set<string>;
@@ -932,7 +936,9 @@ interface EventsPageProps {
 
 export const EventsPage: React.FC<EventsPageProps> = ({ 
   selectedDate, 
+  setSelectedDate,
   isCalendarOpen, 
+  setIsCalendarOpen,
   interestedIds, 
   notInterestedIds,
   registeredIds,
@@ -946,6 +952,26 @@ export const EventsPage: React.FC<EventsPageProps> = ({
   viewedEventIds,
   onTeamsViewToggle
 }) => {
+  const [internalCalendarOpen, setInternalCalendarOpen] = useState(isCalendarOpen);
+  const [internalSelectedDate, setInternalSelectedDate] = useState<number | null>(selectedDate);
+
+  const effectiveCalendarOpen = setIsCalendarOpen !== undefined ? isCalendarOpen : internalCalendarOpen;
+  const handleCalendarToggle = (open: boolean) => {
+    if (setIsCalendarOpen) {
+      setIsCalendarOpen(open);
+    } else {
+      setInternalCalendarOpen(open);
+    }
+  };
+
+  const effectiveSelectedDate = setSelectedDate !== undefined ? selectedDate : internalSelectedDate;
+  const handleDateSelect = (date: number | null) => {
+    if (setSelectedDate) {
+      setSelectedDate(date);
+    } else {
+      setInternalSelectedDate(date);
+    }
+  };
   // Event data management with full async loading/error/empty lifecycle
   const { 
     events, 
@@ -1312,7 +1338,7 @@ export const EventsPage: React.FC<EventsPageProps> = ({
         ? (activeFilter === 'All' || e.category === activeFilter)
         : selectedCategories.includes(e.category);
       const matchesSearch = searchQuery.trim() === '' ? true : e.title.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchesDate = selectedDate ? e.dayOfMonth === selectedDate : true;
+      const matchesDate = effectiveSelectedDate ? e.dayOfMonth === effectiveSelectedDate : true;
       const matchesInterested = showOnlyInterested ? interestedIds.has(e.id) : true;
       return matchesCategory && matchesSearch && matchesDate && matchesInterested;
     }).sort((a, b) => {
@@ -1330,7 +1356,7 @@ export const EventsPage: React.FC<EventsPageProps> = ({
       if (!dateA || !dateB) return 0;
       return dateA.getTime() - dateB.getTime();
     });
-  }, [events, selectedCategories, activeFilter, searchQuery, selectedDate, registeredIds, interestedIds, notInterestedIds, showOnlyInterested]);
+  }, [events, selectedCategories, activeFilter, searchQuery, effectiveSelectedDate, registeredIds, interestedIds, notInterestedIds, showOnlyInterested]);
 
   const categories = useMemo(() => {
     const nearDeadline = filteredData.filter(e => {
@@ -1386,52 +1412,58 @@ export const EventsPage: React.FC<EventsPageProps> = ({
 
   return (
     <div className="relative flex-1 min-w-0 w-full h-full overflow-hidden flex flex-col">
-      <div 
-        id="events-page-scroll-container"
-        ref={scrollContainerRef}
-        onScroll={handleScroll}
-        className={`flex-1 flex flex-col transition-all ${
-          showTeamsView ? 'overflow-hidden w-full h-full' : 'pb-32 overflow-y-auto max-w-7xl mx-auto w-full h-full'
-        } ${(!showTeamsView && isCalendarOpen) ? 'pr-[320px]' : ''} relative`}
-      >
-      {/* Background Decorative Accents */}
+      {/* 1. Static Layout: EventsHeader is ALWAYS mounted at the top, full-width, visible, and interactive */}
       {!showTeamsView && (
-        <>
-          <div className="absolute top-0 left-1/4 w-[500px] h-[500px] bg-blue-50/30 rounded-full blur-[120px] pointer-events-none -z-10 animate-pulse" />
-          <div className="absolute top-1/2 right-0 w-[400px] h-[400px] bg-blue-50/20 rounded-full blur-[100px] pointer-events-none -z-10" />
-        </>
+        <div className="w-full shrink-0 z-30 bg-white">
+          <EventsHeader 
+            showTeamsView={showTeamsView}
+            setShowTeamsView={setShowTeamsView}
+            setActiveTeam={setActiveTeam}
+            setShowTeamMembers={setShowTeamMembers}
+            setShowCreateTeamForm={setShowCreateTeamForm}
+            setShowJoinTeamView={setShowJoinTeamView}
+            teams={teams}
+            showCreateTeamForm={showCreateTeamForm}
+            showJoinTeamView={showJoinTeamView}
+            searchQuery={searchQuery}
+            setSearchQuery={setSearchQuery}
+            selectedCategories={selectedCategories}
+            setSelectedCategories={setSelectedCategories}
+            selectedStatuses={selectedStatuses}
+            setSelectedStatuses={setSelectedStatuses}
+            activeFilter={activeFilter}
+            setActiveFilter={setActiveFilter}
+            activeNav={activeNav}
+            setActiveNav={setActiveNav}
+            showOnlyInterested={showOnlyInterested}
+            setShowOnlyInterested={setShowOnlyInterested}
+          />
+        </div>
       )}
 
-      {/* 1. Static Layout: EventsHeader is ALWAYS mounted, visible, and interactive */}
-      {!showTeamsView && (
-        <EventsHeader 
-          showTeamsView={showTeamsView}
-          setShowTeamsView={setShowTeamsView}
-          setActiveTeam={setActiveTeam}
-          setShowTeamMembers={setShowTeamMembers}
-          setShowCreateTeamForm={setShowCreateTeamForm}
-          setShowJoinTeamView={setShowJoinTeamView}
-          teams={teams}
-          showCreateTeamForm={showCreateTeamForm}
-          showJoinTeamView={showJoinTeamView}
-          searchQuery={searchQuery}
-          setSearchQuery={setSearchQuery}
-          selectedCategories={selectedCategories}
-          setSelectedCategories={setSelectedCategories}
-          selectedStatuses={selectedStatuses}
-          setSelectedStatuses={setSelectedStatuses}
-          activeFilter={activeFilter}
-          setActiveFilter={setActiveFilter}
-          activeNav={activeNav}
-          setActiveNav={setActiveNav}
-          showOnlyInterested={showOnlyInterested}
-          setShowOnlyInterested={setShowOnlyInterested}
-        />
-      )}
+      {/* 2. Main Content Area below Event Page Header */}
+      <div className="flex-1 min-h-0 w-full overflow-hidden flex flex-row relative">
+        {/* Main Events Content Column */}
+        <div className="flex-1 min-w-0 h-full flex flex-col overflow-hidden relative">
+          <div 
+            id="events-page-scroll-container"
+            ref={scrollContainerRef}
+            onScroll={handleScroll}
+            className={`flex-1 flex flex-col transition-all ${
+              showTeamsView ? 'overflow-hidden w-full h-full' : 'pb-32 overflow-y-auto max-w-7xl mx-auto w-full h-full'
+            } relative`}
+          >
+            {/* Background Decorative Accents */}
+            {!showTeamsView && (
+              <>
+                <div className="absolute top-0 left-1/4 w-[500px] h-[500px] bg-blue-50/30 rounded-full blur-[120px] pointer-events-none -z-10 animate-pulse" />
+                <div className="absolute top-1/2 right-0 w-[400px] h-[400px] bg-blue-50/20 rounded-full blur-[100px] pointer-events-none -z-10" />
+              </>
+            )}
 
-      {/* 2. Team Portal View */}
-      {showTeamsView && (
-        <div className="flex-1 min-h-0 flex flex-col w-full h-full overflow-hidden bg-white">
+            {/* 2. Team Portal View */}
+            {showTeamsView && (
+              <div className="flex-1 min-h-0 flex flex-col w-full h-full overflow-hidden bg-white">
           <TeamPortal 
             availableEvents={events.length > 0 ? events : EVENTS_MOCK}
             activeTeam={activeTeam}
@@ -1487,7 +1519,7 @@ export const EventsPage: React.FC<EventsPageProps> = ({
       {/* 3. API-Driven Data Feed Section: Displays Loading State ONLY Here */}
       {!showTeamsView && (
         isLoading ? (
-          <EventsFeedSkeleton />
+          <EventsFeedSkeleton isCalendarOpen={effectiveCalendarOpen} />
         ) : isError ? (
           <EventsErrorScreen error={loadError} onRetry={refetchEvents} />
         ) : isEmpty ? (
@@ -1518,6 +1550,7 @@ export const EventsPage: React.FC<EventsPageProps> = ({
             todayDay={TODAY_DAY}
             now={now}
             onExplore={handleExploreEvent}
+            isCalendarOpen={effectiveCalendarOpen}
           />
         )
       )}
@@ -1569,15 +1602,43 @@ export const EventsPage: React.FC<EventsPageProps> = ({
 
     {/* Centered Floating Back to Top Button aligned with Events page actual content boundaries */}
     {!showTeamsView && !exploringEvent && (
-      <div className={`absolute bottom-6 sm:bottom-7 inset-x-0 pointer-events-none max-w-7xl mx-auto w-full z-[9999] flex justify-center ${
-        isCalendarOpen ? 'pr-[320px]' : ''
-      }`}>
+      <div className="absolute bottom-6 sm:bottom-7 inset-x-0 pointer-events-none max-w-7xl mx-auto w-full z-[9999] flex justify-center">
         <BackToTop 
           showBackToTop={showBackToTop} 
           scrollToTop={scrollToTop} 
         />
       </div>
     )}
+
+    {/* Floating Calendar Option in Bottom-Right Corner (Only shown when calendar is closed) */}
+    {!showTeamsView && !effectiveCalendarOpen && (
+      <button 
+        id="tour-calendar"
+        type="button"
+        onClick={() => handleCalendarToggle(true)}
+        className="fixed bottom-8 right-8 z-[100] w-16 h-16 rounded-[28px] flex items-center justify-center shadow-[0_20px_40px_-10px_rgba(37,99,235,0.5)] transition-all group border-2 border-white/20 bg-gradient-to-br from-blue-600 to-sky-500 hover:scale-110 active:scale-95 hover:shadow-[0_25px_50px_-12px_rgba(37,99,235,0.6)] cursor-pointer"
+        title="Open Calendar"
+        aria-label="Open Calendar"
+      >
+        <CalendarIcon className="w-7 h-7 text-white transition-transform" />
+        <div className="absolute top-0 right-0 w-4 h-4 bg-white border-[3px] border-blue-600 rounded-full animate-bounce shadow-sm" />
+      </button>
+    )}
   </div>
+
+    {/* Side-by-Side Calendar View (Height excludes EventsHeader) */}
+    {!showTeamsView && effectiveCalendarOpen && (
+      <MiniFloatingCalendar 
+        isOpen={effectiveCalendarOpen} 
+        setIsOpen={handleCalendarToggle}
+        selectedDate={effectiveSelectedDate}
+        setSelectedDate={handleDateSelect}
+        events={events.length > 0 ? events : EVENTS_MOCK}
+        interestedIds={interestedIds}
+        registeredIds={registeredIds}
+      />
+    )}
+  </div>
+</div>
 );
 };

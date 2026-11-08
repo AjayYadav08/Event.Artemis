@@ -24,6 +24,7 @@ interface EventsDiscoveryProps {
   todayDay: number;
   now: Date;
   onExplore: (event: CampusEvent) => void;
+  isCalendarOpen?: boolean;
 }
 
 const EventsDiscovery: React.FC<EventsDiscoveryProps> = (props) => {
@@ -38,7 +39,8 @@ const EventsDiscovery: React.FC<EventsDiscoveryProps> = (props) => {
     interestedIds, notInterestedIds, registeredIds,
     toggleInterested, markNotInterested,
     todayDay, now,
-    onExplore
+    onExplore,
+    isCalendarOpen = false
   } = props;
 
   const showClosing = selectedStatuses.length === 0 || selectedStatuses.includes('tour-closing');
@@ -57,7 +59,7 @@ const EventsDiscovery: React.FC<EventsDiscoveryProps> = (props) => {
   if (showTeamsView) return null;
 
   return (
-    <div className="space-y-12 px-8 pb-32">
+    <div className="space-y-12 px-8 pt-4 pb-32">
 
       {totalResults === 0 ? (
         <div className="flex flex-col items-center justify-center pt-16 pb-40 text-center animate-in fade-in slide-in-from-bottom-3 duration-700 ease-out">
@@ -102,6 +104,7 @@ const EventsDiscovery: React.FC<EventsDiscoveryProps> = (props) => {
               todayDay={todayDay}
               now={now}
               onExplore={onExplore}
+              isCalendarOpen={isCalendarOpen}
             />
           )}
 
@@ -124,6 +127,7 @@ const EventsDiscovery: React.FC<EventsDiscoveryProps> = (props) => {
               todayDay={todayDay}
               now={now}
               onExplore={onExplore}
+              isCalendarOpen={isCalendarOpen}
             />
           )}
 
@@ -146,6 +150,7 @@ const EventsDiscovery: React.FC<EventsDiscoveryProps> = (props) => {
               todayDay={todayDay}
               now={now}
               onExplore={onExplore}
+              isCalendarOpen={isCalendarOpen}
             />
           )}
         </div>

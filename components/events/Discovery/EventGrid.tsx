@@ -17,6 +17,7 @@ interface EventGridProps {
   todayDay: number;
   now: Date;
   onExplore: (event: CampusEvent) => void;
+  isCalendarOpen?: boolean;
 }
 
 const EventGrid: React.FC<EventGridProps> = ({
@@ -32,7 +33,8 @@ const EventGrid: React.FC<EventGridProps> = ({
   markNotInterested,
   todayDay,
   now,
-  onExplore
+  onExplore,
+  isCalendarOpen = false
 }) => {
   // Memoize card derivations at the top level — not inside JSX
   const cards = useMemo(() => events.map(event => {
@@ -97,7 +99,7 @@ const EventGrid: React.FC<EventGridProps> = ({
         </div>
         <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{events.length} results</span>
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 w-full">
+      <div className={`grid grid-cols-1 ${isCalendarOpen ? 'md:grid-cols-2' : 'md:grid-cols-2 lg:grid-cols-3'} gap-4 w-full`}>
         {cards.map(({ event, isInterested, isNotInterested, isRegistered, isPast, isUrgent, timeString }) => (
           <div
             key={`${title}-${event.id}`}

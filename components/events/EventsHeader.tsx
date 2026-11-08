@@ -144,7 +144,7 @@ const EventsHeader: React.FC<EventsHeaderProps> = ({
 
 
   return (
-    <div className="sticky top-0 z-[100] px-8 pt-5 pb-4 bg-white border-b border-slate-200 mb-4">
+    <div id="events-page-header" className="sticky top-0 z-[100] px-8 pt-5 pb-4 bg-white border-b border-slate-200">
       {/* SINGLE ROW */}
       <div className="flex items-center justify-between gap-4 w-full">
         {showTeamsView ? (

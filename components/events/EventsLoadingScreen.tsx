@@ -7,9 +7,9 @@ import { AlertCircle, RefreshCw, CalendarX, Sparkles } from 'lucide-react';
  * The static header above it remains completely visible and interactive.
  * Features subtle, theme-matching moving gradient shimmers.
  */
-export const EventsFeedSkeleton: React.FC = () => {
+export const EventsFeedSkeleton: React.FC<{ isCalendarOpen?: boolean }> = ({ isCalendarOpen = false }) => {
   return (
-    <div className="space-y-12 px-8 pb-32 animate-in fade-in duration-300 select-none">
+    <div className="space-y-12 px-8 pt-4 pb-32 animate-in fade-in duration-300 select-none">
       
       {/* Subtle activity status bar */}
       <div className="flex items-center justify-between pb-3 border-b border-slate-200/80">
@@ -39,7 +39,7 @@ export const EventsFeedSkeleton: React.FC = () => {
         </div>
 
         {/* 3 Event Card Skeletons */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5 sm:gap-4 w-full">
+        <div className={`grid grid-cols-1 ${isCalendarOpen ? 'md:grid-cols-2' : 'md:grid-cols-2 lg:grid-cols-3'} gap-3.5 sm:gap-4 w-full`}>
           {[1, 2, 3].map((idx) => (
             <div
               key={`feed-skeleton-closing-${idx}`}
@@ -84,7 +84,7 @@ export const EventsFeedSkeleton: React.FC = () => {
           <div className="h-5 w-8 bg-slate-100 rounded-full shimmer-animated" />
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5 sm:gap-4 w-full">
+        <div className={`grid grid-cols-1 ${isCalendarOpen ? 'md:grid-cols-2' : 'md:grid-cols-2 lg:grid-cols-3'} gap-3.5 sm:gap-4 w-full`}>
           {[4, 5, 6].map((idx) => (
             <div
               key={`feed-skeleton-upcoming-${idx}`}

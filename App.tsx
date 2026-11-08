@@ -6,7 +6,6 @@ import { MainDashboard } from './components/MainDashboard';
 import { RightPanel } from './components/RightPanel';
 import { FullCalendarPage } from './components/FullCalendarPage';
 import { EventsPage, EVENTS_MOCK, CampusEvent } from './components/EventsPage';
-import { MiniFloatingCalendar } from './components/MiniFloatingCalendar';
 import { MessageSquareWarning, Ghost, ArrowRight, X, Radio, BellRing, Layout } from 'lucide-react';
 
 import { TutorialProvider, useTutorial } from './components/tutorial/TutorialContext';
@@ -367,7 +366,9 @@ const MainApp: React.FC = () => {
           <EventsPage 
             key={eventsPageKey}
             selectedDate={selectedGlobalDate} 
+            setSelectedDate={setSelectedGlobalDate}
             isCalendarOpen={isMiniCalendarOpen}
+            setIsCalendarOpen={setIsMiniCalendarOpen}
             interestedIds={interestedIds}
             notInterestedIds={notInterestedIds}
             registeredIds={registeredIds}
@@ -545,18 +546,6 @@ const MainApp: React.FC = () => {
         </div>
       </div>
 
-      {/* Restrict calendar exclusively to the main Events page */}
-      {activeTab === 'Events' && !isTeamsViewOpen && (
-        <MiniFloatingCalendar 
-          isOpen={isMiniCalendarOpen} 
-          setIsOpen={setIsMiniCalendarOpen}
-          selectedDate={selectedGlobalDate}
-          setSelectedDate={setSelectedGlobalDate}
-          events={EVENTS_MOCK}
-          interestedIds={interestedIds}
-          registeredIds={registeredIds}
-        />
-      )}
       <TutorialOverlay />
     </div>
   );
