@@ -36,7 +36,13 @@ export const EventSourcesAdminPage: React.FC = () => {
   const [activeSubTab, setActiveSubTab] = useState<'sources' | 'preview' | 'alerts'>('sources');
   const [selectedSourceFilter, setSelectedSourceFilter] = useState<string | undefined>(undefined);
 
-  // Add/Edit Source Modal
+  // URL-Only Quick Add
+  const [quickUrl, setQuickUrl] = useState('');
+  const [quickError, setQuickError] = useState<string | null>(null);
+  const [isAddingQuick, setIsAddingQuick] = useState(false);
+  const [autoPreviewSourceId, setAutoPreviewSourceId] = useState<string | null>(null);
+
+  // Edit Source Modal (existing sources only)
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingSource, setEditingSource] = useState<EventSourceItem | null>(null);
   const [sourceName, setSourceName] = useState('');
@@ -101,6 +107,11 @@ export const EventSourcesAdminPage: React.FC = () => {
             qc.invalidateQueries({ queryKey: ['discovered-events'] });
             qc.invalidateQueries({ queryKey: ['events'] });
             qc.invalidateQueries({ queryKey: ['admin-notifications'] });
+            if (autoPreviewSourceId === srcId && job.status === 'COMPLETED') {
+              setSelectedSourceFilter(srcId);
+              setActiveSubTab('preview');
+              setAutoPreviewSourceId(null);
+            }
           }
         } catch {
           delete next[srcId];
@@ -138,6 +149,38 @@ export const EventSourcesAdminPage: React.FC = () => {
     setAllowAiFallback(src.extractionOptions?.allowAiFallback !== false);
     setFormError(null);
     setShowAddModal(true);
+  };
+
+  const handleQuickAddUrl = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setQuickError(null);
+    const trimmed = quickUrl.trim();
+    try {
+      const parsed = new URL(trimmed);
+      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+        setQuickError('URL must start with http:// or https://');
+        return;
+      }
+    } catch {
+      setQuickError('Please enter a valid website URL');
+      return;
+    }
+
+    setIsAddingQuick(true);
+    try {
+      const res = await eventSourcesService.createSource({ sourceUrl: trimmed });
+      setQuickUrl('');
+      if (res.job) {
+        setActiveJobMap((prev) => ({ ...prev, [res.source.id]: res.job!.id }));
+        setAutoPreviewSourceId(res.source.id);
+      }
+      setActionFeedback(`Recognized "${res.source.name}" (${SOURCE_TYPE_LABEL[res.source.sourceType]}) — discovering events...`);
+      qc.invalidateQueries({ queryKey: ['event-sources'] });
+    } catch (err: any) {
+      setQuickError(err?.message || 'Failed to add website URL');
+    } finally {
+      setIsAddingQuick(false);
+    }
   };
 
   const handleSaveSource = async (e: React.FormEvent) => {
@@ -265,33 +308,49 @@ export const EventSourcesAdminPage: React.FC = () => {
 
   return (
     <div className="h-full overflow-y-auto bg-[#f8fafc] p-6 space-y-6">
-      {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-4 bg-white border border-slate-200 rounded-2xl p-5 shadow-xs">
-        <div>
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-[#EBF3FF] text-[#1D4ED8] flex items-center justify-center">
-              <Globe className="w-5 h-5" />
-            </div>
-            <div>
-              <h1 className="text-xl font-extrabold text-slate-900 tracking-tight">
-                Automated Event Sources & Monitoring
-              </h1>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Register event pages or college websites for automatic extraction, deduplication, and scheduled sync.
-              </p>
-            </div>
+      {/* Header + URL-Only Source Registration */}
+      <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs space-y-4">
+        <div className="flex items-center gap-2.5">
+          <div className="w-9 h-9 rounded-xl bg-[#EBF3FF] text-[#1D4ED8] flex items-center justify-center">
+            <Globe className="w-5 h-5" />
+          </div>
+          <div>
+            <h1 className="text-xl font-extrabold text-slate-900 tracking-tight">
+              Automated Event Sources & Monitoring
+            </h1>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Paste any event, Unstop, Luma, or college website URL — Event Artemis automatically recognizes the platform, extracts events, and monitors updates.
+            </p>
           </div>
         </div>
-        <button
-          onClick={() => {
-            resetForm();
-            setShowAddModal(true);
-          }}
-          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#0070F3] hover:bg-blue-700 text-white text-sm font-bold shadow-xs transition-colors cursor-pointer"
-        >
-          <Plus className="w-4 h-4" />
-          Add Website Source
-        </button>
+
+        <form onSubmit={handleQuickAddUrl} className="flex flex-col sm:flex-row gap-2.5">
+          <input
+            type="url"
+            required
+            value={quickUrl}
+            onChange={(e) => {
+              setQuickUrl(e.target.value);
+              if (quickError) setQuickError(null);
+            }}
+            placeholder="Paste website URL (e.g. https://unstop.com/hackathons, https://lu.ma/ai, or college events page)"
+            className="flex-1 px-4 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-[#0070F3]"
+          />
+          <button
+            type="submit"
+            disabled={isAddingQuick}
+            className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-[#0070F3] hover:bg-blue-700 text-white text-sm font-bold shadow-xs transition-colors cursor-pointer disabled:opacity-50 shrink-0"
+          >
+            <Sparkles className="w-4 h-4" />
+            {isAddingQuick ? 'Discovering...' : 'Add Website / Discover Events'}
+          </button>
+        </form>
+
+        {quickError && (
+          <div className="bg-rose-50 border border-rose-200 text-rose-700 px-3 py-2 rounded-xl text-xs font-semibold">
+            {quickError}
+          </div>
+        )}
       </div>
 
       {actionFeedback && (
@@ -584,19 +643,68 @@ export const EventSourcesAdminPage: React.FC = () => {
                             {item.status}
                           </span>
                         </div>
-                        <div className="text-xs text-slate-500 flex flex-wrap gap-3">
-                          <span>Source: {item.source?.name}</span>
-                          <span>Date: {p.date || 'TBA'}</span>
-                          <span>
-                            Deadline:{' '}
-                            {p.registrationDeadline ? new Date(p.registrationDeadline).toLocaleDateString() : 'Not listed'}
-                          </span>
-                          <span>Location: {p.location || 'TBA'}</span>
-                          <span>Mode: {p.participationMode || 'Offline'}</span>
-                          <span>Category: {p.category || 'Competition'}</span>
-                          <span>Domain: {p.domain || 'General'}</span>
-                          {p.prizePool && <span>Prize: {p.prizePool}</span>}
+                        {p.description && (
+                          <div className="bg-slate-50 border border-slate-100 rounded-xl p-3 text-xs text-slate-700 leading-relaxed mt-2">
+                            <span className="font-bold text-slate-900 block mb-0.5">About / Overview</span>
+                            <p className="line-clamp-3">{p.description}</p>
+                          </div>
+                        )}
+
+                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5 pt-2 text-xs">
+                          <div className="bg-slate-50/70 rounded-lg px-2.5 py-1.5">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase block">Event Date</span>
+                            <span className="font-semibold text-slate-800">{p.date || 'TBA'} {p.time ? `· ${p.time}` : ''}</span>
+                          </div>
+                          <div className="bg-slate-50/70 rounded-lg px-2.5 py-1.5">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase block">Reg. Deadline</span>
+                            <span className="font-semibold text-slate-800">
+                              {p.registrationDeadline ? new Date(p.registrationDeadline).toLocaleDateString() : 'Not listed'}
+                            </span>
+                          </div>
+                          <div className="bg-slate-50/70 rounded-lg px-2.5 py-1.5">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase block">Location</span>
+                            <span className="font-semibold text-slate-800 truncate block">{p.location || 'TBA'}</span>
+                          </div>
+                          <div className="bg-slate-50/70 rounded-lg px-2.5 py-1.5">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase block">Mode & Team Size</span>
+                            <span className="font-semibold text-slate-800">{p.participationMode || 'Offline'} · {p.teamSize || '1-4'}</span>
+                          </div>
+                          <div className="bg-slate-50/70 rounded-lg px-2.5 py-1.5">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase block">Category & Domain</span>
+                            <span className="font-semibold text-slate-800">{p.category || 'Competition'} · {p.domain || 'General'}</span>
+                          </div>
+                          <div className="bg-slate-50/70 rounded-lg px-2.5 py-1.5">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase block">Organizer</span>
+                            <span className="font-semibold text-slate-800 truncate block">{p.conductingAgency || item.source?.name || 'TBA'}</span>
+                          </div>
+                          <div className="bg-slate-50/70 rounded-lg px-2.5 py-1.5">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase block">Prize Pool & Fee</span>
+                            <span className="font-semibold text-slate-800">{p.prizePool || 'TBA'} · {p.registrationFee || 'Free'}</span>
+                          </div>
+                          <div className="bg-slate-50/70 rounded-lg px-2.5 py-1.5">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase block">Eligibility</span>
+                            <span className="font-semibold text-slate-800 truncate block">{p.eligibility || 'All Students'}</span>
+                          </div>
                         </div>
+
+                        {Array.isArray(p.tracks) && p.tracks.length > 0 && (
+                          <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                            <span className="text-[11px] font-bold text-slate-500">Tracks:</span>
+                            {p.tracks.slice(0, 6).map((t: string, idx: number) => (
+                              <span key={idx} className="px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 text-[11px] font-semibold">
+                                {t}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+
+                        {Array.isArray(p.rules) && p.rules.length > 0 && (
+                          <div className="text-[11px] text-slate-600 pt-1">
+                            <span className="font-bold text-slate-700">Rules ({p.rules.length}): </span>
+                            <span>{p.rules.slice(0, 2).join(' · ')}</span>
+                          </div>
+                        )}
+
                         <div className="flex flex-wrap gap-3 text-xs pt-1">
                           <a href={item.sourcePageUrl} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline">
                             Source Page
@@ -617,12 +725,16 @@ export const EventSourcesAdminPage: React.FC = () => {
                             setEditingDiscovery(item);
                             setEditDraft({
                               title: item.title,
+                              description: p.description || '',
                               date: p.date || '',
                               location: p.location || '',
                               participationMode: p.participationMode || 'Offline',
                               category: p.category || 'Competition',
                               domain: p.domain || '',
+                              conductingAgency: p.conductingAgency || '',
                               prizePool: p.prizePool || '',
+                              registrationFee: p.registrationFee || 'Free',
+                              teamSize: p.teamSize || '1-4 Members',
                               eligibility: p.eligibility || 'All Students',
                               registrationUrl: p.registrationUrl || '',
                             });
@@ -852,13 +964,22 @@ export const EventSourcesAdminPage: React.FC = () => {
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <form onSubmit={handleSaveDiscoveryEdit} className="space-y-3">
+            <form onSubmit={handleSaveDiscoveryEdit} className="space-y-3 max-h-[75vh] overflow-y-auto pr-1">
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">Event Name</label>
                 <input
                   required
                   value={editDraft.title || ''}
                   onChange={(e) => setEditDraft((d) => ({ ...d, title: e.target.value }))}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">About / Overview (Concise Summary Only)</label>
+                <textarea
+                  rows={3}
+                  value={editDraft.description || ''}
+                  onChange={(e) => setEditDraft((d) => ({ ...d, description: e.target.value }))}
                   className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm"
                 />
               </div>

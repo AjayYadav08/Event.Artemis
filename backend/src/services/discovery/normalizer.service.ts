@@ -46,6 +46,33 @@ export function parseFlexibleDate(raw?: string | null): ParsedDateResult {
     return { date: null, ambiguous: true, warning: `Invalid calendar date "${trimmed}"` };
   }
 
+  // Named month formats: "15 December 2026" or "Dec 15, 2026" (parsed in UTC to avoid timezone day-shift)
+  const monthLookup: Record<string, number> = {
+    jan: 0, january: 0, feb: 1, february: 1, mar: 2, march: 2, apr: 3, april: 3,
+    may: 4, jun: 5, june: 5, jul: 6, july: 6, aug: 7, august: 7,
+    sep: 8, sept: 8, september: 8, oct: 9, october: 9, nov: 10, november: 10, dec: 11, december: 11,
+  };
+  const dmyMatch = trimmed.match(/\b(\d{1,2})\s+([A-Za-z]{3,9})\s+(20\d{2})\b/);
+  if (dmyMatch && monthLookup[dmyMatch[2].toLowerCase()] !== undefined) {
+    const day = Number(dmyMatch[1]);
+    const month = monthLookup[dmyMatch[2].toLowerCase()];
+    const year = Number(dmyMatch[3]);
+    const d = new Date(Date.UTC(year, month, day, 10, 0));
+    if (!Number.isNaN(d.getTime()) && d.getUTCMonth() === month && d.getUTCDate() === day) {
+      return { date: d, ambiguous: false };
+    }
+  }
+  const mdyMatch = trimmed.match(/\b([A-Za-z]{3,9})\s+(\d{1,2}),?\s+(20\d{2})\b/);
+  if (mdyMatch && monthLookup[mdyMatch[1].toLowerCase()] !== undefined) {
+    const month = monthLookup[mdyMatch[1].toLowerCase()];
+    const day = Number(mdyMatch[2]);
+    const year = Number(mdyMatch[3]);
+    const d = new Date(Date.UTC(year, month, day, 10, 0));
+    if (!Number.isNaN(d.getTime()) && d.getUTCMonth() === month && d.getUTCDate() === day) {
+      return { date: d, ambiguous: false };
+    }
+  }
+
   const parsed = new Date(trimmed);
   if (!Number.isNaN(parsed.getTime()) && parsed.getUTCFullYear() >= 2020 && parsed.getUTCFullYear() <= 2035) {
     return { date: parsed, ambiguous: false };
@@ -171,7 +198,8 @@ export function normalizeAndValidateEvent(
       : 'OnCampus';
 
   const category = normalizeCategory(raw.category, title, description || '');
-  const domain = normalizeDomain(raw.domain, title, description || '');
+  const normalizedTracks = Array.isArray(raw.tracks) ? raw.tracks.filter(Boolean) : [];
+  const domain = normalizeDomain(raw.domain || normalizedTracks[0], title, description || '');
   const teamSize =
     stripHtmlTags(raw.teamSize) ||
     (raw.minTeamSize && raw.maxTeamSize ? `${raw.minTeamSize}-${raw.maxTeamSize} Members` : '1-4 Members');
@@ -209,13 +237,22 @@ export function normalizeAndValidateEvent(
     description,
     venueDetails: stripHtmlTags(raw.venue) || location,
     prizePool: stripHtmlTags(raw.prizePool),
-    tracks: Array.isArray(raw.tracks) ? raw.tracks.filter(Boolean) : [],
+    tracks: normalizedTracks,
     posterUrl,
     eligibility: stripHtmlTags(raw.eligibility) || 'All Students',
     teamSize,
     certification: raw.certification ?? true,
-    prizesList: Array.isArray(raw.prizesList) ? raw.prizesList : [],
+    prizesList: Array.isArray(raw.prizesList)
+      ? raw.prizesList.map((p, idx) => ({
+          title: p.title || p.position || `Prize ${idx + 1}`,
+          amount: p.amount,
+          desc: p.desc || p.description || '',
+          color: p.color || 'from-amber-400 to-yellow-500',
+        }))
+      : [],
     rules: Array.isArray(raw.rules) ? raw.rules.filter(Boolean) : [],
+    rounds: Array.isArray(raw.rounds) ? raw.rounds.filter(Boolean) : [],
+    timeline: Array.isArray(raw.timeline) ? raw.timeline : [],
     faqs: Array.isArray(raw.faqs) ? raw.faqs : [],
     organizerContact: raw.organizerContact ?? null,
     isPaid,
@@ -226,10 +263,12 @@ export function normalizeAndValidateEvent(
     sourceUrl: sourcePageUrl,
     externalSourceId: raw.externalEventId ?? null,
     sourceMetadata: {
+      shortDescription: stripHtmlTags(raw.shortDescription),
       timezone: raw.timezone || null,
       pdfUrls: raw.pdfUrls || [],
       requiredResources: raw.requiredResources || [],
       otherRewards: raw.otherRewards || [],
+      additionalInformation: raw.additionalInformation || null,
     },
   };
 
@@ -244,6 +283,10 @@ export function normalizeAndValidateEvent(
     ['eligibility', raw.eligibility],
     ['registrationUrl', registrationUrl],
     ['participationMode', raw.participationMode],
+    ['teamSize', raw.teamSize],
+    ['registrationFee', raw.entryFee],
+    ['rules', payload.rules.length > 0 ? payload.rules : null],
+    ['tracks', payload.tracks.length > 0 ? payload.tracks : null],
   ];
 
   const extractedFields = trackableFields.filter(([, v]) => Boolean(v)).map(([k]) => k);

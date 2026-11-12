@@ -33,17 +33,20 @@ export interface RawExtractedEvent {
   entryFee?: string | null;
   isPaid?: boolean | null;
   prizePool?: string | null;
-  prizesList?: Array<{ position: string; amount: string; description?: string }> | null;
+  prizesList?: Array<{ title?: string; position?: string; amount: string; desc?: string; description?: string; color?: string }> | null;
   certification?: boolean | null;
   otherRewards?: string[] | null;
   registrationUrl?: string | null;
   applicationUrl?: string | null;
   organizerContact?: { phone?: string; email?: string } | null;
   rules?: string[] | null;
+  rounds?: string[] | null;
+  timeline?: Array<{ time: string; title: string; desc: string }> | null;
   dos?: string[] | null;
   donts?: string[] | null;
   faqs?: Array<{ q: string; a: string }> | null;
   requiredResources?: string[] | null;
+  additionalInformation?: Record<string, unknown> | null;
   externalEventId?: string | null;
   pdfUrls?: string[] | null;
 }
@@ -86,8 +89,10 @@ export interface NormalizedEventPayload {
   eligibility: string;
   teamSize: string;
   certification: boolean;
-  prizesList: Array<{ position: string; amount: string; description?: string }>;
+  prizesList: Array<{ title: string; amount: string; desc: string; color: string }>;
   rules: string[];
+  rounds: string[];
+  timeline: Array<{ time: string; title: string; desc: string }>;
   faqs: Array<{ q: string; a: string }>;
   organizerContact: { phone?: string; email?: string } | null;
   isPaid: boolean;

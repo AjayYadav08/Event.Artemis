@@ -205,7 +205,94 @@ export function extractStructuredData(
     };
   }
 
-  // 1B. Open Graph fallback only if og:type is event-like or has event meta tags
+  // 1B. Embedded __NEXT_DATA__ JSON (Luma, Unstop, Devfolio, Next.js apps)
+  const nextDataRaw = $('script#__NEXT_DATA__').html();
+  if (nextDataRaw) {
+    try {
+      const nextJson = JSON.parse(nextDataRaw) as any;
+      const pageProps = nextJson?.props?.pageProps || {};
+      const initialData = pageProps?.initialData?.data || pageProps?.initialData || pageProps;
+      const nextEvents: RawExtractedEvent[] = [];
+
+      // Luma single event shape
+      if (initialData?.event?.name) {
+        const ev = initialData.event;
+        const geo = ev.geo_address_info || {};
+        nextEvents.push({
+          title: ev.name,
+          description: initialData.description_mirror?.content || ev.description || null,
+          posterUrl: ev.cover_url || null,
+          eventStartDate: ev.start_at || null,
+          eventEndDate: ev.end_at || null,
+          timezone: ev.timezone || null,
+          venue: geo.full_address || geo.address || null,
+          city: geo.city || null,
+          country: geo.country || null,
+          location: geo.full_address || (ev.location_type === 'online' ? 'Online' : null),
+          participationMode: ev.location_type === 'online' ? 'Online' : 'Offline',
+          conductingAgency: initialData.hosts?.[0]?.name || initialData.calendar?.name || null,
+          registrationUrl: pageUrl,
+          eventWebsiteUrl: pageUrl,
+          externalEventId: ev.api_id || null,
+        });
+      }
+
+      // Luma listing/calendar entries shape
+      const entries =
+        initialData?.featured_items ||
+        initialData?.entries ||
+        initialData?.events ||
+        pageProps?.events ||
+        [];
+      if (Array.isArray(entries) && entries.length > 0 && nextEvents.length === 0) {
+        for (const entry of entries) {
+          const ev = entry?.event || entry;
+          if (!ev || !(ev.name || ev.title)) continue;
+          const slug = ev.url || entry?.url;
+          const itemUrl = slug
+            ? (() => {
+                try {
+                  return new URL(slug, pageUrl).toString();
+                } catch {
+                  return pageUrl;
+                }
+              })()
+            : pageUrl;
+          const geo = ev.geo_address_info || {};
+          nextEvents.push({
+            title: ev.name || ev.title,
+            description: ev.description || null,
+            posterUrl: ev.cover_url || ev.banner_mobile?.image_url || null,
+            eventStartDate: ev.start_at || ev.start_date || null,
+            eventEndDate: ev.end_at || ev.end_date || null,
+            location: geo.full_address || geo.city_state || ev.location || null,
+            participationMode: ev.location_type === 'online' ? 'Online' : null,
+            conductingAgency: ev.organisation?.name || entry?.calendar?.name || null,
+            registrationUrl: itemUrl,
+            eventWebsiteUrl: itemUrl,
+            externalEventId: ev.api_id || (ev.id ? String(ev.id) : null),
+          });
+        }
+      }
+
+      if (nextEvents.length > 0) {
+        return {
+          method: ExtractionMethod.STRUCTURED_DATA,
+          confidence: 0.9,
+          events: nextEvents,
+          discoveredLinks: [],
+          rawTextSnippet: $('body').text().replace(/\s+/g, ' ').trim().slice(0, 1500),
+          fieldProvenance: { title: 'EXPLICIT', eventStartDate: 'EXPLICIT' },
+          aiCallsUsed: 0,
+          warnings: [],
+        };
+      }
+    } catch {
+      // Ignore malformed __NEXT_DATA__
+    }
+  }
+
+  // 1C. Open Graph fallback only if og:type is event-like or has event meta tags
   const ogTitle = $('meta[property="og:title"]').attr('content')?.trim();
   const ogDesc = $('meta[property="og:description"]').attr('content')?.trim() || $('meta[name="description"]').attr('content')?.trim();
   const ogImage = $('meta[property="og:image"]').attr('content')?.trim();

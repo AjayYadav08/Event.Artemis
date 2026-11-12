@@ -10,18 +10,19 @@ import { prisma } from '../../lib/prisma';
 import { ApiError } from '../../utils/ApiError';
 import { eventsService } from '../events.service';
 import { validateExternalUrl } from './ssrf.service';
+import { recognizeWebsiteSource } from './platformRecognizer.service';
 import { jobQueueService } from '../../worker/jobQueue.service';
 
 export const eventSourcesService = {
   async createSource(input: {
-    name: string;
     sourceUrl: string;
-    sourceType: 'SINGLE_EVENT' | 'COLLEGE_WEBSITE' | 'EVENT_LISTING' | 'OTHER';
+    name?: string;
+    sourceType?: 'SINGLE_EVENT' | 'COLLEGE_WEBSITE' | 'EVENT_LISTING' | 'OTHER';
     description?: string;
-    syncIntervalHours: number;
-    maxCrawlDepth: number;
-    maxPagesPerCycle: number;
-    monitoringEnabled: boolean;
+    syncIntervalHours?: number;
+    maxCrawlDepth?: number;
+    maxPagesPerCycle?: number;
+    monitoringEnabled?: boolean;
     extractionOptions?: Record<string, unknown>;
     autoDiscover?: boolean;
   }, userId: string) {
@@ -36,22 +37,29 @@ export const eventSourcesService = {
       throw new ApiError(409, 'A source with this URL is already registered');
     }
 
-    const nextCheckAt = input.monitoringEnabled
-      ? new Date(Date.now() + input.syncIntervalHours * 60 * 60 * 1000)
+    const autoConfig = recognizeWebsiteSource(normalizedUrl);
+    const monitoringEnabled = input.monitoringEnabled ?? true;
+    const syncIntervalHours = input.syncIntervalHours ?? autoConfig.syncIntervalHours;
+
+    const nextCheckAt = monitoringEnabled
+      ? new Date(Date.now() + syncIntervalHours * 60 * 60 * 1000)
       : null;
 
     const source = await prisma.eventSource.create({
       data: {
-        name: input.name,
+        name: input.name?.trim() || autoConfig.name,
         sourceUrl: normalizedUrl,
-        sourceType: input.sourceType,
-        description: input.description,
-        monitoringEnabled: input.monitoringEnabled,
-        monitoringStatus: input.monitoringEnabled ? MonitoringStatus.ACTIVE : MonitoringStatus.PAUSED,
-        syncIntervalHours: input.syncIntervalHours,
-        maxCrawlDepth: input.maxCrawlDepth,
-        maxPagesPerCycle: input.maxPagesPerCycle,
-        extractionOptions: (input.extractionOptions ?? {}) as Prisma.InputJsonValue,
+        sourceType: input.sourceType ?? autoConfig.sourceType,
+        description: input.description ?? autoConfig.description,
+        monitoringEnabled,
+        monitoringStatus: monitoringEnabled ? MonitoringStatus.ACTIVE : MonitoringStatus.PAUSED,
+        syncIntervalHours,
+        maxCrawlDepth: input.maxCrawlDepth ?? autoConfig.maxCrawlDepth,
+        maxPagesPerCycle: input.maxPagesPerCycle ?? autoConfig.maxPagesPerCycle,
+        extractionOptions: {
+          ...autoConfig.extractionOptions,
+          ...(input.extractionOptions ?? {}),
+        } as Prisma.InputJsonValue,
         nextCheckAt,
         lastSyncStatus: SyncStatus.PENDING,
         createdById: userId,

@@ -1,6 +1,7 @@
 import * as cheerio from 'cheerio';
 import { ExtractionMethod } from '@prisma/client';
 import { ExtractionResult, RawExtractedEvent } from './extraction.types';
+import { classifyContentIntoSections } from './contentClassifier.service';
 
 const EVENT_KEYWORDS = [
   'hackathon', 'event', 'workshop', 'seminar', 'fest', 'symposium',
@@ -166,31 +167,30 @@ export function extractFromStaticHtml(html: string, pageUrl: string): Extraction
     .filter((l) => l.length > 0);
 
   const fullCleanText = [...structuredPairs, ...bodyLines].join('\n');
-  const paragraphs = $('main p, article p, p')
-    .map((_, el) => $(el).text().replace(/\s+/g, ' ').trim())
-    .get()
-    .filter((p) => p.length > 25);
-
-  const description = ogDesc || paragraphs.slice(0, 3).join('\n\n') || null;
+  const classified = classifyContentIntoSections(html);
+  const description = classified.overview || ogDesc || null;
 
   // Date patterns
   const datePattern = '((?:\\d{1,2}\\s+[A-Za-z]{3,9}\\s+20\\d{2})|(?:[A-Za-z]{3,9}\\s+\\d{1,2},?\\s+20\\d{2})|(?:20\\d{2}-\\d{2}-\\d{2}))';
   const eventStartDate =
+    classified.eventStartDate ||
     extractLabeledField(fullCleanText, ['Event Date', 'Start Date', 'Date', 'When']) ||
     extractDateCandidate(fullCleanText, new RegExp(`(?:event\\s+date|starts?\\s+on|held\\s+on|date)\\s*[:\\-]?\\s*${datePattern}`, 'i')) ||
     extractDateCandidate(fullCleanText, new RegExp(datePattern, 'i'));
 
   const registrationDeadline =
+    classified.registrationDeadline ||
     extractLabeledField(fullCleanText, ['Registration Deadline', 'Last Date to Register', 'Apply By', 'Deadline', 'Closing Date']) ||
     extractDateCandidate(fullCleanText, new RegExp(`(?:registration\\s+deadline|apply\\s+by|last\\s+date|closes?\\s+on|deadline)\\s*[:\\-]?\\s*${datePattern}`, 'i'));
 
-  const venue = extractLabeledField(fullCleanText, ['Venue', 'Location', 'Address', 'Where', 'Campus']);
+  const venue = classified.venue || extractLabeledField(fullCleanText, ['Venue', 'Location', 'Address', 'Where', 'Campus']);
   const prizePool =
+    classified.prizePool ||
     extractLabeledField(fullCleanText, ['Prize Pool', 'Prizes', 'Total Prize', 'Reward', 'Cash Prize']) ||
     (fullCleanText.match(/(?:prize\s+pool|prizes?\s+worth)\s*[:\-]?\s*([₹$€£]\s?[\d,]+(?:\s*(?:lakhs?|k|crore))?|(?:INR|USD)\s*[\d,]+)/i)?.[1] ?? null);
-  const eligibility = extractLabeledField(fullCleanText, ['Eligibility', 'Who Can Participate', 'Open To', 'Participants']);
-  const teamSize = extractLabeledField(fullCleanText, ['Team Size', 'Group Size', 'Members']);
-  const entryFee = extractLabeledField(fullCleanText, ['Entry Fee', 'Registration Fee', 'Fee', 'Ticket Price']);
+  const eligibility = classified.eligibility || extractLabeledField(fullCleanText, ['Eligibility', 'Who Can Participate', 'Open To', 'Participants']);
+  const teamSize = classified.teamSize || extractLabeledField(fullCleanText, ['Team Size', 'Group Size', 'Members']);
+  const entryFee = classified.entryFee || extractLabeledField(fullCleanText, ['Entry Fee', 'Registration Fee', 'Fee', 'Ticket Price']);
   const conductingAgency =
     extractLabeledField(fullCleanText, ['Organizer', 'Organized By', 'Conducted By', 'Hosted By', 'Institution']) ||
     $('meta[property="og:site_name"]').attr('content')?.trim() ||
@@ -236,14 +236,22 @@ export function extractFromStaticHtml(html: string, pageUrl: string): Extraction
 
   const rawEvent: RawExtractedEvent = {
     title,
+    shortDescription: classified.shortDescription,
     description,
     posterUrl,
     eventStartDate,
+    eventEndDate: classified.eventEndDate,
+    registrationStart: classified.registrationStart,
     registrationDeadline,
+    duration: classified.duration,
     venue,
+    campus: classified.campus,
     location: venue,
     participationMode,
     prizePool,
+    prizesList: classified.prizesList.length > 0 ? classified.prizesList : null,
+    certification: classified.certification,
+    tracks: classified.tracks.length > 0 ? classified.tracks : null,
     eligibility,
     teamSize,
     entryFee,
@@ -251,8 +259,22 @@ export function extractFromStaticHtml(html: string, pageUrl: string): Extraction
     conductingAgency,
     registrationUrl: registrationUrl || pageUrl,
     eventWebsiteUrl: pageUrl,
-    organizerContact: emailMatch || phoneMatch ? { email: emailMatch?.[0], phone: phoneMatch?.[0] } : null,
-    rules: rules.length > 0 ? rules : null,
+    organizerContact:
+      classified.organizerContact ||
+      (emailMatch || phoneMatch ? { email: emailMatch?.[0], phone: phoneMatch?.[0] } : null),
+    rules: classified.rules.length > 0 ? classified.rules : rules.length > 0 ? rules : null,
+    rounds: classified.rounds.length > 0 ? classified.rounds : null,
+    timeline: classified.timeline.length > 0 ? classified.timeline : null,
+    faqs: classified.faqs.length > 0 ? classified.faqs : null,
+    dos: classified.dos.length > 0 ? classified.dos : null,
+    donts: classified.donts.length > 0 ? classified.donts : null,
+    additionalInformation:
+      classified.registrationProcess || Object.keys(classified.extraSections).length > 0
+        ? {
+            ...(classified.registrationProcess ? { registrationProcess: classified.registrationProcess } : {}),
+            ...(Object.keys(classified.extraSections).length > 0 ? { extraSections: classified.extraSections } : {}),
+          }
+        : null,
     pdfUrls: pdfUrls.length > 0 ? pdfUrls : null,
   };
 

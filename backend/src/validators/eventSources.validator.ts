@@ -2,13 +2,13 @@ import { z } from 'zod';
 
 export const createEventSourceSchema = z.object({
   body: z.object({
-    name: z.string().min(2).max(160),
     sourceUrl: z.string().url(),
-    sourceType: z.enum(['SINGLE_EVENT', 'COLLEGE_WEBSITE', 'EVENT_LISTING', 'OTHER']).default('SINGLE_EVENT'),
+    name: z.string().min(2).max(160).optional(),
+    sourceType: z.enum(['SINGLE_EVENT', 'COLLEGE_WEBSITE', 'EVENT_LISTING', 'OTHER']).optional(),
     description: z.string().max(1000).optional(),
-    syncIntervalHours: z.coerce.number().int().min(1).max(168).default(12),
-    maxCrawlDepth: z.coerce.number().int().min(1).max(3).default(2),
-    maxPagesPerCycle: z.coerce.number().int().min(1).max(100).default(50),
+    syncIntervalHours: z.coerce.number().int().min(1).max(168).optional(),
+    maxCrawlDepth: z.coerce.number().int().min(1).max(3).optional(),
+    maxPagesPerCycle: z.coerce.number().int().min(1).max(100).optional(),
     monitoringEnabled: z.boolean().default(true),
     extractionOptions: z
       .object({

@@ -97,9 +97,9 @@ export const eventSourcesService = {
   },
 
   async createSource(input: {
-    name: string;
     sourceUrl: string;
-    sourceType: SourceType;
+    name?: string;
+    sourceType?: SourceType;
     description?: string;
     syncIntervalHours?: number;
     maxCrawlDepth?: number;

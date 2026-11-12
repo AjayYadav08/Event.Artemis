@@ -107,6 +107,56 @@ describe('Automated Event Discovery & Monitoring Integration Tests', () => {
         return;
       }
 
+      if (url === '/multi-section-hackathon') {
+        res.writeHead(200, { 'Content-Type': 'text/html' });
+        res.end(`<!doctype html>
+<html><body>
+  <main>
+    <h1>National AI Innovation Hackathon 2026</h1>
+    <h2>About the Hackathon</h2>
+    <p>A national-level AI hackathon bringing student builders together to solve real campus and civic challenges.</p>
+    <h2>Important Dates</h2>
+    <ul>
+      <li>Registration Opens: 20 November 2026</li>
+      <li>Registration Deadline: 10 December 2026</li>
+      <li>Event Start Date: 15 December 2026</li>
+      <li>Event End Date: 16 December 2026</li>
+      <li>Duration: 36 Hours</li>
+    </ul>
+    <h2>Venue</h2>
+    <p>Venue: Innovation Auditorium, New Delhi</p>
+    <p>Mode: Offline</p>
+    <p>Team Size: 2-4 Members</p>
+    <p>Entry Fee: Free</p>
+    <h2>Eligibility Criteria</h2>
+    <p>Undergraduate college students from any engineering or CS discipline.</p>
+    <h2>Problem Statements & Tracks</h2>
+    <ul>
+      <li>Artificial Intelligence</li>
+      <li>Machine Learning</li>
+      <li>Web Development</li>
+    </ul>
+    <h2>Prizes and Rewards</h2>
+    <p>Prize Pool: ₹1,00,000</p>
+    <ul>
+      <li>1st Place: ₹60,000 cash prize and certificate of merit</li>
+      <li>2nd Place: ₹40,000 cash prize</li>
+    </ul>
+    <h2>Rules and Regulations</h2>
+    <ul>
+      <li>All code must be written during the 36-hour hackathon window.</li>
+      <li>Teams must submit their GitHub repository before the deadline.</li>
+    </ul>
+    <h2>Registration Process</h2>
+    <p>Complete the online form and verify your college ID at check-in.</p>
+    <h2>Contact Us</h2>
+    <p>Email: hack@example.edu | Phone: +91 9876543210</p>
+    <a href="/apply-ai-hack">Register Now</a>
+  </main>
+</body></html>`);
+        return;
+      }
+
       if (url === '/events/codefest-2026') {
         res.writeHead(200, { 'Content-Type': 'text/html' });
         res.end(`<!doctype html>
@@ -302,6 +352,125 @@ describe('Automated Event Discovery & Monitoring Integration Tests', () => {
       .delete(`/api/v1/event-sources/${sourceId}`)
       .set('Authorization', `Bearer ${adminToken}`);
     expect(delRes.status).toBe(200);
+  });
+
+  it('recognizes Unstop, Luma, and College URLs automatically and supports URL-only registration', async () => {
+    const { recognizeWebsiteSource } = await import('../src/services/discovery/platformRecognizer.service');
+    const { extractStructuredData } = await import('../src/services/discovery/structuredExtractor');
+
+    const unstopList = recognizeWebsiteSource('https://unstop.com/hackathons');
+    expect(unstopList.platform).toBe('unstop');
+    expect(unstopList.sourceType).toBe('EVENT_LISTING');
+
+    const unstopSingle = recognizeWebsiteSource('https://unstop.com/hackathons/smart-india-hackathon-123456');
+    expect(unstopSingle.platform).toBe('unstop');
+    expect(unstopSingle.sourceType).toBe('SINGLE_EVENT');
+
+    const lumaList = recognizeWebsiteSource('https://lu.ma/ai');
+    expect(lumaList.platform).toBe('luma');
+    expect(lumaList.sourceType).toBe('EVENT_LISTING');
+
+    const lumaSingle = recognizeWebsiteSource('https://lu.ma/agentic-builders-meetup');
+    expect(lumaSingle.platform).toBe('luma');
+    expect(lumaSingle.sourceType).toBe('SINGLE_EVENT');
+
+    const college = recognizeWebsiteSource('https://mit.edu/events');
+    expect(college.platform).toBe('college');
+    expect(college.sourceType).toBe('COLLEGE_WEBSITE');
+
+    // Luma __NEXT_DATA__ listing extraction
+    const lumaHtml = `<html><head><script id="__NEXT_DATA__" type="application/json">${JSON.stringify({
+      props: {
+        pageProps: {
+          initialData: {
+            data: {
+              entries: [
+                {
+                  event: {
+                    api_id: 'evt-luma-1',
+                    name: 'Luma AI Demo Night',
+                    start_at: '2026-12-20T18:00:00Z',
+                    url: 'luma-ai-demo',
+                    location_type: 'online',
+                  },
+                },
+              ],
+            },
+          },
+        },
+      },
+    })}</script></head><body></body></html>`;
+    const lumaExtracted = extractStructuredData(lumaHtml, 'https://lu.ma/ai', 'text/html');
+    expect(lumaExtracted?.events.length).toBe(1);
+    expect(lumaExtracted?.events[0].title).toBe('Luma AI Demo Night');
+
+    // URL-only POST /api/v1/event-sources (no name, no sourceType)
+    const urlOnlyRes = await request(app)
+      .post('/api/v1/event-sources')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ sourceUrl: `${fixtureBaseUrl}/events/codefest-2026` });
+
+    expect(urlOnlyRes.status).toBe(201);
+    expect(urlOnlyRes.body.data.source.name).toBeTruthy();
+    expect(urlOnlyRes.body.data.source.sourceType).toBe('SINGLE_EVENT');
+
+    await processNextJobOnce();
+    const discRes = await request(app)
+      .get(`/api/v1/event-sources/${urlOnlyRes.body.data.source.id}/discovered-events`)
+      .set('Authorization', `Bearer ${adminToken}`);
+    expect(discRes.status).toBe(200);
+    expect(discRes.body.data[0].title).toBe('Annual CodeFest 2026');
+  });
+
+  it('classifies multi-section event pages into separate structured Event fields rather than one paragraph', async () => {
+    const createRes = await request(app)
+      .post('/api/v1/event-sources')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ sourceUrl: `${fixtureBaseUrl}/multi-section-hackathon` });
+
+    expect(createRes.status).toBe(201);
+    const sourceId = createRes.body.data.source.id;
+    await processNextJobOnce();
+
+    const discRes = await request(app)
+      .get(`/api/v1/event-sources/${sourceId}/discovered-events`)
+      .set('Authorization', `Bearer ${adminToken}`);
+    expect(discRes.status).toBe(200);
+    const candidate = discRes.body.data[0];
+    const p = candidate.normalizedPayload;
+
+    expect(candidate.title).toBe('National AI Innovation Hackathon 2026');
+    // Description must contain ONLY the overview, NOT rules/prizes/dates/contact
+    expect(p.description).toContain('national-level AI hackathon');
+    expect(p.description).not.toContain('All code must be written');
+    expect(p.description).not.toContain('hack@example.edu');
+
+    // Individual fields must be populated separately
+    expect(p.eventDate).toContain('2026-12-15');
+    expect(p.registrationDeadline).toContain('2026-12-10');
+    expect(p.location).toContain('Innovation Auditorium');
+    expect(p.participationMode).toBe('Offline');
+    expect(p.teamSize).toBe('2-4 Members');
+    expect(p.registrationFee).toBe('Free');
+    expect(p.prizePool).toContain('1,00,000');
+    expect(p.eligibility).toContain('Undergraduate college students');
+    expect(p.tracks).toEqual(['Artificial Intelligence', 'Machine Learning', 'Web Development']);
+    expect(p.rules.length).toBe(2);
+    expect(p.organizerContact?.email).toBe('hack@example.edu');
+    expect(p.sourceMetadata?.additionalInformation?.registrationProcess).toContain('online form');
+
+    // Approve and verify persisted Event record in PostgreSQL
+    const approveRes = await request(app)
+      .post(`/api/v1/discovered-events/${candidate.id}/approve`)
+      .set('Authorization', `Bearer ${adminToken}`);
+    expect(approveRes.status).toBe(200);
+
+    const saved = await prisma.event.findUnique({ where: { id: approveRes.body.data.event.id } });
+    expect(saved?.description).toContain('national-level AI hackathon');
+    expect(saved?.prizePool).toContain('1,00,000');
+    expect(saved?.eligibility).toContain('Undergraduate college students');
+    expect((saved?.tracks as string[]).length).toBe(3);
+    expect((saved?.rules as string[]).length).toBe(2);
   });
 });
 
