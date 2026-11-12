@@ -203,21 +203,69 @@ export function extractFromStaticHtml(html: string, pageUrl: string): Extraction
     else if (/\boffline\b|\bin[- ]person\b|\bon[- ]campus\b/i.test(fullCleanText)) participationMode = 'Offline';
   }
 
-  // Registration URL
+  // Registration URL & Important Links
   let registrationUrl: string | null = null;
+  const importantLinks: Array<{ label: string; url: string }> = [];
+  const seenLinkUrls = new Set<string>();
+
+  const addImportantLink = (label: string, rawHref: string) => {
+    if (!rawHref || rawHref.startsWith('#') || rawHref.startsWith('javascript:') || rawHref.startsWith('mailto:') || rawHref.startsWith('tel:')) {
+      return;
+    }
+    try {
+      const resolved = new URL(rawHref, pageUrl);
+      if (resolved.protocol !== 'http:' && resolved.protocol !== 'https:') return;
+      const hrefStr = resolved.toString();
+      if (seenLinkUrls.has(hrefStr)) return;
+      seenLinkUrls.add(hrefStr);
+      importantLinks.push({ label: label.slice(0, 60), url: hrefStr });
+    } catch {
+      // ignore invalid link
+    }
+  };
+
   $('a[href]').each((_, el) => {
-    if (registrationUrl) return;
-    const text = $(el).text().trim().toLowerCase();
+    const text = $(el).text().replace(/\s+/g, ' ').trim();
+    const lowerText = text.toLowerCase();
     const href = $(el).attr('href')?.trim();
     if (!href) return;
-    if (/(register|apply\s*now|participate|join\s*now|rsvp)/i.test(text) || /devfolio|unstop|lu\.ma|forms\.gle|eventbrite/i.test(href)) {
+
+    if (
+      !registrationUrl &&
+      (/(register|apply\s*now|participate|join\s*now|rsvp)/i.test(lowerText) ||
+        /devfolio|unstop|lu\.ma|forms\.gle|eventbrite/i.test(href))
+    ) {
       try {
         registrationUrl = new URL(href, pageUrl).toString();
       } catch {
         // ignore invalid link
       }
     }
+
+    if (
+      /(register|apply|rsvp|brochure|rulebook|rules|guideline|syllabus|schedule|agenda|problem\s*statement|official|website|discord|whatsapp|telegram|slack|github|form|drive|youtube|deck|slides|submit)/i.test(lowerText) ||
+      /discord\.gg|chat\.whatsapp\.com|t\.me\/|forms\.gle|docs\.google\.com|drive\.google\.com|github\.com|lu\.ma|unstop\.com|devfolio\.co|\.pdf($|\?)/i.test(href)
+    ) {
+      let label = text;
+      if (!label || label.length < 3) {
+        if (/discord/i.test(href)) label = 'Discord Community';
+        else if (/whatsapp/i.test(href)) label = 'WhatsApp Group';
+        else if (/t\.me/i.test(href)) label = 'Telegram Channel';
+        else if (/github/i.test(href)) label = 'GitHub Repository';
+        else if (/\.pdf/i.test(href)) label = 'Event Brochure / PDF';
+        else if (/forms\.gle|docs\.google\.com\/forms/i.test(href)) label = 'Registration Form';
+        else label = 'Event Resource';
+      }
+      addImportantLink(label, href);
+    }
   });
+
+  if (registrationUrl) {
+    addImportantLink('Registration Link', registrationUrl);
+  }
+  for (const pdf of pdfUrls) {
+    addImportantLink('Event Document (PDF)', pdf);
+  }
 
   // Rules & FAQs
   const rules: string[] = [];
@@ -276,6 +324,7 @@ export function extractFromStaticHtml(html: string, pageUrl: string): Extraction
           }
         : null,
     pdfUrls: pdfUrls.length > 0 ? pdfUrls : null,
+    importantLinks: importantLinks.length > 0 ? importantLinks.slice(0, 12) : null,
   };
 
   const provenance: Record<string, 'EXPLICIT' | 'INFERRED' | 'MISSING'> = {};
@@ -291,12 +340,20 @@ export function extractFromStaticHtml(html: string, pageUrl: string): Extraction
 
   const confidence = Math.min(0.88, Math.max(0.25, populatedCount / 12));
 
+  const linksBlock =
+    importantLinks.length > 0
+      ? `\n\nEXTRACTED LINKS:\n${importantLinks
+          .slice(0, 12)
+          .map((l) => `- ${l.label}: ${l.url}`)
+          .join('\n')}`
+      : '';
+
   return {
     method: ExtractionMethod.STATIC_HTML,
     confidence: Number(confidence.toFixed(2)),
     events: title ? [rawEvent] : [],
     discoveredLinks,
-    rawTextSnippet: fullCleanText.slice(0, 6000),
+    rawTextSnippet: `${fullCleanText.slice(0, 6000)}${linksBlock}`,
     fieldProvenance: provenance,
     aiCallsUsed: 0,
     warnings: [],

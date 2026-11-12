@@ -31,6 +31,11 @@ export interface FAQ {
   a: string;
 }
 
+export interface ImportantLink {
+  label: string;
+  url: string;
+}
+
 export interface CampusEvent {
   id: string;
   title: string;
@@ -44,6 +49,17 @@ export interface CampusEvent {
   conductingAgency?: string;
   locationType?: 'On-Campus' | 'Off-Campus';
   registrationWindow?: string;
+  registrationUrl?: string;
+  sourceUrl?: string;
+  registrationStart?: string | null;
+  registrationDeadline?: string | null;
+  eventDate?: string;
+  eventEndDate?: string;
+  timezone?: string;
+  shortDescription?: string;
+  importantLinks?: ImportantLink[];
+  otherRewards?: string[];
+  pdfUrls?: string[];
   xp: number;
   attendees: number;
   sectionParticipants: number; 

@@ -33,7 +33,12 @@ const aiExtractedEventSchema = z.object({
     .nullable()
     .optional(),
   certification: z.boolean().nullable().optional(),
+  otherRewards: z.array(z.string()).nullable().optional(),
   registrationUrl: z.string().nullable().optional(),
+  importantLinks: z
+    .array(z.object({ label: z.string(), url: z.string() }))
+    .nullable()
+    .optional(),
   organizerContact: z
     .object({ email: z.string().optional(), phone: z.string().optional() })
     .nullable()
@@ -95,7 +100,7 @@ export async function extractWithAi(
   const userPrompt = `${prepareSanitizedAiInput(rawText, pageUrl)}
 
 Extract the event into JSON with separate structured keys:
-title, shortDescription, description (ONLY the concise event overview, no dates/rules/prizes/venue), category (Competition|Fest|Workshop|Seminar), domain, tracks (string[]), conductingAgency, eventStartDate, eventEndDate, registrationStart, registrationDeadline, duration, timezone, venue, campus, city, state, country, participationMode (Online|Offline|Hybrid), eligibility, teamMode (Team|Solo|Both), teamSize, entryFee, prizePool, prizesList ([{title, amount, desc}]), certification (boolean), registrationUrl, organizerContact ({email, phone}), rules (string[]), rounds (string[]), timeline ([{time, title, desc}]), faqs ([{q, a}]), dos (string[]), donts (string[]), additionalInformation (object for extra categorized details like registrationProcess), fieldClassification (map of field -> EXPLICIT|INFERRED|MISSING), missingReasons (map of field -> reason), confidence (0..1).`;
+title, shortDescription, description (ONLY the concise event overview, no dates/rules/prizes/venue), category (Competition|Fest|Workshop|Seminar), domain, tracks (string[]), conductingAgency, eventStartDate, eventEndDate, registrationStart, registrationDeadline, duration, timezone, venue, campus, city, state, country, participationMode (Online|Offline|Hybrid), eligibility, teamMode (Team|Solo|Both), teamSize, entryFee, prizePool, prizesList ([{title, amount, desc}]), certification (boolean), otherRewards (string[]), registrationUrl, importantLinks ([{label, url}]), organizerContact ({email, phone}), rules (string[]), rounds (string[]), timeline ([{time, title, desc}]), faqs ([{q, a}]), dos (string[]), donts (string[]), additionalInformation (object for extra categorized details like registrationProcess), fieldClassification (map of field -> EXPLICIT|INFERRED|MISSING), missingReasons (map of field -> reason), confidence (0..1).`;
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 25000);
@@ -181,8 +186,10 @@ title, shortDescription, description (ONLY the concise event overview, no dates/
       prizePool: validated.prizePool ?? null,
       prizesList: validated.prizesList ?? null,
       certification: validated.certification ?? null,
+      otherRewards: validated.otherRewards ?? null,
       registrationUrl: validated.registrationUrl ?? pageUrl,
       eventWebsiteUrl: pageUrl,
+      importantLinks: validated.importantLinks ?? null,
       organizerContact: validated.organizerContact ?? null,
       rules: validated.rules ?? null,
       rounds: validated.rounds ?? null,

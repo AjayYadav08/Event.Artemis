@@ -161,6 +161,7 @@ export function normalizeAndValidateEvent(
   if (deadlineParsed.warning) validationWarnings.push(deadlineParsed.warning);
 
   const regStartParsed = parseFlexibleDate(raw.registrationStart);
+  const endParsed = parseFlexibleDate(raw.eventEndDate);
 
   // Use parsed eventDate or safe future placeholder flagged with warning
   let eventDateObj = startParsed.date;
@@ -206,6 +207,38 @@ export function normalizeAndValidateEvent(
   const teamMode = normalizeTeamMode(raw.teamMode, teamSize);
 
   const registrationUrl = normalizeUrl(raw.registrationUrl || raw.applicationUrl, sourcePageUrl);
+  const websiteUrl = normalizeUrl(raw.eventWebsiteUrl, sourcePageUrl);
+
+  // Build deduplicated importantLinks list
+  const importantLinks: Array<{ label: string; url: string }> = [];
+  const seenImportantUrls = new Set<string>();
+  const pushImportantLink = (label?: string | null, rawUrl?: string | null) => {
+    const normalized = normalizeUrl(rawUrl, sourcePageUrl);
+    if (!normalized || seenImportantUrls.has(normalized)) return;
+    seenImportantUrls.add(normalized);
+    importantLinks.push({
+      label: stripHtmlTags(label) || 'Official Link',
+      url: normalized,
+    });
+  };
+
+  if (registrationUrl) pushImportantLink('Official Registration Link', registrationUrl);
+  if (Array.isArray(raw.importantLinks)) {
+    for (const item of raw.importantLinks) {
+      if (item && typeof item.url === 'string') {
+        pushImportantLink(item.label || 'Event Link', item.url);
+      }
+    }
+  }
+  if (Array.isArray(raw.pdfUrls)) {
+    for (const pdf of raw.pdfUrls) {
+      pushImportantLink('Event Brochure / PDF', pdf);
+    }
+  }
+  if (websiteUrl && websiteUrl !== registrationUrl) {
+    pushImportantLink('Official Event Page', websiteUrl);
+  }
+
   const posterUrl =
     normalizeUrl(raw.posterUrl) ||
     'https://images.unsplash.com/photo-1540575467063-178a50c2df87?auto=format&fit=crop&w=1200&q=80';
@@ -265,7 +298,9 @@ export function normalizeAndValidateEvent(
     sourceMetadata: {
       shortDescription: stripHtmlTags(raw.shortDescription),
       timezone: raw.timezone || null,
+      eventEndDate: endParsed.date ? endParsed.date.toISOString() : null,
       pdfUrls: raw.pdfUrls || [],
+      importantLinks: importantLinks.slice(0, 12),
       requiredResources: raw.requiredResources || [],
       otherRewards: raw.otherRewards || [],
       additionalInformation: raw.additionalInformation || null,

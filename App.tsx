@@ -624,33 +624,29 @@ const MainApp: React.FC = () => {
         }
       `}} />
 
-      {!isDetailsOpen && (
-        <TopBar 
-          notifications={notifications}
-          onNotificationClick={(eventId) => {
-            // Ensure we transition to Events tab if not already there
-            if (activeTab !== 'Events') {
-              handleTabChange('Events');
-            }
-            setExploringEventId(eventId);
-            handleEventView(eventId);
-          }}
-          onClearNotifications={clearNotifications}
-          onMarkRead={markNotificationsRead}
-          currentUser={currentUser}
-          onLogout={handleLogout}
-        />
-      )}
+      <TopBar 
+        notifications={notifications}
+        onNotificationClick={(eventId) => {
+          // Ensure we transition to Events tab if not already there
+          if (activeTab !== 'Events') {
+            handleTabChange('Events');
+          }
+          setExploringEventId(eventId);
+          handleEventView(eventId);
+        }}
+        onClearNotifications={clearNotifications}
+        onMarkRead={markNotificationsRead}
+        currentUser={currentUser}
+        onLogout={handleLogout}
+      />
 
       <div className="flex flex-1 min-h-0 overflow-hidden">
-        {!isDetailsOpen && (
-          <Sidebar 
-            activeTab={activeTab} 
-            setActiveTab={handleTabChange} 
-            unopenedEventsCount={unopenedEventsCount}
-            userRole={currentUser.role}
-          />
-        )}
+        <Sidebar 
+          activeTab={activeTab} 
+          setActiveTab={handleTabChange} 
+          unopenedEventsCount={unopenedEventsCount}
+          userRole={currentUser.role}
+        />
         
         <div className="flex flex-1 min-w-0 overflow-hidden">
           <main className="flex-1 min-w-0 bg-[#f8fafc]/50 relative overflow-hidden">

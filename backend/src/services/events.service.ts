@@ -69,6 +69,8 @@ export function formatEventForFrontend(
     event.type
   );
 
+  const meta = (event.sourceMetadata as Record<string, unknown> | null) ?? {};
+
   return {
     id: event.id,
     title: event.title,
@@ -125,6 +127,18 @@ export function formatEventForFrontend(
     dataProvenance: event.dataProvenance,
     extractionStatus: event.extractionStatus,
     sourceUrl: event.sourceUrl,
+    importantLinks: Array.isArray(meta.importantLinks)
+      ? (meta.importantLinks as Array<{ label: string; url: string }>)
+      : undefined,
+    otherRewards: Array.isArray(meta.otherRewards)
+      ? (meta.otherRewards as string[])
+      : undefined,
+    pdfUrls: Array.isArray(meta.pdfUrls)
+      ? (meta.pdfUrls as string[])
+      : undefined,
+    shortDescription: typeof meta.shortDescription === 'string' ? meta.shortDescription : undefined,
+    timezone: typeof meta.timezone === 'string' ? meta.timezone : undefined,
+    eventEndDate: typeof meta.eventEndDate === 'string' ? meta.eventEndDate : undefined,
   };
 }
 

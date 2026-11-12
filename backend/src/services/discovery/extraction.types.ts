@@ -49,6 +49,7 @@ export interface RawExtractedEvent {
   additionalInformation?: Record<string, unknown> | null;
   externalEventId?: string | null;
   pdfUrls?: string[] | null;
+  importantLinks?: Array<{ label: string; url: string }> | null;
 }
 
 export interface ExtractionResult {

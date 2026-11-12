@@ -1675,21 +1675,6 @@ export const EventsPage: React.FC<EventsPageProps> = ({
         )
       )}
 
-      {exploringEvent && (
-        <EventDetailsModal 
-          exploringEvent={exploringEvent}
-          closeExplorer={closeExplorer}
-          isExploringEventPast={exploringEvent.dayOfMonth < TODAY_DAY}
-          isRegistered={registeredIds.has(exploringEvent.id)}
-          setShowPeersModal={setShowPeersModal}
-          onRegisterClick={onRegisterClick}
-          isInterested={interestedIds.has(exploringEvent.id)}
-          toggleInterested={toggleInterested}
-          isNotInterested={notInterestedIds.has(exploringEvent.id)}
-          markNotInterested={markNotInterested}
-        />
-      )}
-
       <SharedModals 
         showConfirmModal={showConfirmModal}
         setShowConfirmModal={setShowConfirmModal}
@@ -1720,6 +1705,22 @@ export const EventsPage: React.FC<EventsPageProps> = ({
       </div>
     </div>
 
+    {/* Event Details View: strictly inside the main events content area below EventsHeader */}
+    {exploringEvent && (
+      <EventDetailsModal 
+        exploringEvent={exploringEvent}
+        closeExplorer={closeExplorer}
+        isExploringEventPast={exploringEvent.dayOfMonth < TODAY_DAY}
+        isRegistered={registeredIds.has(exploringEvent.id)}
+        setShowPeersModal={setShowPeersModal}
+        onRegisterClick={onRegisterClick}
+        isInterested={interestedIds.has(exploringEvent.id)}
+        toggleInterested={toggleInterested}
+        isNotInterested={notInterestedIds.has(exploringEvent.id)}
+        markNotInterested={markNotInterested}
+      />
+    )}
+
     {/* Centered Floating Back to Top Button aligned with Events page actual content boundaries */}
     {!showTeamsView && !exploringEvent && (
       <div className="absolute bottom-6 sm:bottom-7 inset-x-0 pointer-events-none max-w-7xl mx-auto w-full z-[9999] flex justify-center">
@@ -1730,8 +1731,8 @@ export const EventsPage: React.FC<EventsPageProps> = ({
       </div>
     )}
 
-    {/* Floating Calendar Option in Bottom-Right Corner (Only shown when calendar is closed) */}
-    {!showTeamsView && !effectiveCalendarOpen && (
+    {/* Floating Calendar Option in Bottom-Right Corner (Only shown when calendar and event details are closed) */}
+    {!showTeamsView && !effectiveCalendarOpen && !exploringEvent && (
       <button 
         id="tour-calendar"
         type="button"
