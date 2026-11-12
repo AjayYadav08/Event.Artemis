@@ -42,7 +42,16 @@ const MainApp: React.FC = () => {
   const { activeFlow, startFlow, advanceStep, currentStepIndex } = useTutorial();
   const [activeTab, setActiveTab] = useState('Home');
   const [eventsPageKey, setEventsPageKey] = useState(0);
-  const [isMiniCalendarOpen, setIsMiniCalendarOpen] = useState(false);
+  const [isMiniCalendarOpen, setIsMiniCalendarOpen] = useState(() => {
+    return localStorage.getItem('artemis_calendar_remain_open') === 'true';
+  });
+
+  const handleMiniCalendarToggle = (open: boolean) => {
+    if (!open) {
+      setSelectedGlobalDate(null);
+    }
+    setIsMiniCalendarOpen(open);
+  };
   const [isTeamsViewOpen, setIsTeamsViewOpen] = useState(false);
   const [selectedGlobalDate, setSelectedGlobalDate] = useState<number | null>(null);
   const [exploringEventId, setExploringEventId] = useState<string | null>(null);
@@ -368,7 +377,7 @@ const MainApp: React.FC = () => {
             selectedDate={selectedGlobalDate} 
             setSelectedDate={setSelectedGlobalDate}
             isCalendarOpen={isMiniCalendarOpen}
-            setIsCalendarOpen={setIsMiniCalendarOpen}
+            setIsCalendarOpen={handleMiniCalendarToggle}
             interestedIds={interestedIds}
             notInterestedIds={notInterestedIds}
             registeredIds={registeredIds}

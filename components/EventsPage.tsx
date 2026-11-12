@@ -957,6 +957,9 @@ export const EventsPage: React.FC<EventsPageProps> = ({
 
   const effectiveCalendarOpen = setIsCalendarOpen !== undefined ? isCalendarOpen : internalCalendarOpen;
   const handleCalendarToggle = (open: boolean) => {
+    if (!open) {
+      handleDateSelect(null);
+    }
     if (setIsCalendarOpen) {
       setIsCalendarOpen(open);
     } else {
