@@ -1,4 +1,12 @@
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api/v1';
+const rawApiUrl = import.meta.env.VITE_API_URL?.trim();
+export const isProductionApiConfigured = !import.meta.env.PROD || Boolean(rawApiUrl);
+const API_BASE_URL = (rawApiUrl || 'http://localhost:4000/api/v1').replace(/\/+$/, '');
+
+if (import.meta.env.PROD && !rawApiUrl) {
+  console.error(
+    '[Event Artemis] VITE_API_URL is not configured in the production build. Set VITE_API_URL in Vercel Environment Variables and redeploy.'
+  );
+}
 
 export class ApiClientError extends Error {
   public readonly status: number;

@@ -5,12 +5,21 @@ import { env } from '../config/env';
 
 const REFRESH_COOKIE_NAME = 'artemis_refresh_token';
 
+const isProduction = env.nodeEnv === 'production';
+
 const cookieOptions = {
   httpOnly: true,
-  secure: env.nodeEnv === 'production',
-  sameSite: 'lax' as const,
+  secure: isProduction,
+  sameSite: (isProduction ? 'none' : 'lax') as 'none' | 'lax',
   path: '/api/v1/auth',
   maxAge: 7 * 24 * 60 * 60 * 1000,
+};
+
+const clearCookieOptions = {
+  httpOnly: true,
+  secure: isProduction,
+  sameSite: (isProduction ? 'none' : 'lax') as 'none' | 'lax',
+  path: '/api/v1/auth',
 };
 
 export const authController = {
@@ -57,7 +66,7 @@ export const authController = {
   logout: asyncHandler(async (req: Request, res: Response) => {
     const token = req.cookies?.[REFRESH_COOKIE_NAME];
     await authService.logout(token);
-    res.clearCookie(REFRESH_COOKIE_NAME, { path: '/api/v1/auth' });
+    res.clearCookie(REFRESH_COOKIE_NAME, clearCookieOptions);
     res.status(200).json({
       success: true,
       message: 'Logged out successfully',
@@ -71,7 +80,7 @@ export const authController = {
       req.body.currentPassword,
       req.body.newPassword
     );
-    res.clearCookie(REFRESH_COOKIE_NAME, { path: '/api/v1/auth' });
+    res.clearCookie(REFRESH_COOKIE_NAME, clearCookieOptions);
     res.status(200).json({
       success: true,
       message: 'Password changed successfully. Please sign in again.',

@@ -1,0 +1,65 @@
+databases:
+  - name: event-artemis-db
+    databaseName: event_artemis
+    plan: free
+
+services:
+  - type: web
+    name: event-artemis-api
+    runtime: node
+    plan: free
+    rootDir: backend
+    buildCommand: npm ci && npx prisma generate && npm run build
+    startCommand: npx prisma migrate deploy && npm run start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: event-artemis-db
+          property: connectionString
+      - key: FRONTEND_URL
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false
+      - key: JWT_ACCESS_SECRET
+        generateValue: true
+      - key: JWT_REFRESH_SECRET
+        generateValue: true
+      - key: JWT_ACCESS_EXPIRES_IN
+        value: 15m
+      - key: JWT_REFRESH_EXPIRES_IN
+        value: 7d
+      - key: ENABLE_IN_PROCESS_WORKER
+        value: "false"
+      - key: STORAGE_PROVIDER
+        value: local
+      - key: UPLOAD_DIR
+        value: ./uploads
+      - key: AI_PROVIDER
+        value: none
+      - key: AI_API_KEY
+        sync: false
+
+  - type: worker
+    name: event-artemis-worker
+    runtime: node
+    plan: starter
+    rootDir: backend
+    buildCommand: npm ci && npx prisma generate && npm run build
+    startCommand: npm run start:worker
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: event-artemis-db
+          property: connectionString
+      - key: AI_PROVIDER
+        value: none
+      - key: AI_API_KEY
+        sync: false
+      - key: ENABLE_PLAYWRIGHT
+        value: "false"
+

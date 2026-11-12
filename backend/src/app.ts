@@ -11,8 +11,17 @@ import apiV1Routes from './routes';
 import { errorHandler, notFoundHandler } from './middleware/error.middleware';
 import { prisma } from './lib/prisma';
 
+export const isCorsOriginAllowed = (origin?: string): boolean => {
+  if (!origin) return true; // Non-browser / server-to-server / curl
+  const normalized = origin.trim().replace(/\/+$/, '');
+  return env.corsOrigins.includes(normalized);
+};
+
 export const createApp = () => {
   const app = express();
+
+  // Required behind Render / Railway / reverse proxies for rate-limiting & secure cookies
+  app.set('trust proxy', 1);
 
   // Security headers
   app.use(
@@ -21,15 +30,22 @@ export const createApp = () => {
     })
   );
 
-  // CORS
-  app.use(
-    cors({
-      origin: [env.frontendUrl, 'http://localhost:5173', 'http://127.0.0.1:5173'],
-      credentials: true,
-      methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-      allowedHeaders: ['Content-Type', 'Authorization'],
-    })
-  );
+  // CORS (strict origin list, no wildcard with credentials)
+  const corsOptions: cors.CorsOptions = {
+    origin: (origin, callback) => {
+      if (isCorsOriginAllowed(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error(`CORS origin not allowed: ${origin}`));
+      }
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+  };
+
+  app.use(cors(corsOptions));
+  app.options('*', cors(corsOptions));
 
   // Rate limiting
   const apiLimiter = rateLimit({

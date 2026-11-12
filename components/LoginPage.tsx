@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { authService, AuthUser } from '../services/authService';
-import { ApiClientError } from '../services/apiClient';
+import { ApiClientError, isProductionApiConfigured } from '../services/apiClient';
 import { Eye, EyeOff, Loader2, ArrowRight, Sparkles } from 'lucide-react';
 
 interface LoginPageProps {
@@ -31,6 +31,8 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
     } catch (err) {
       if (err instanceof ApiClientError) {
         setError(err.message);
+      } else if (!isProductionApiConfigured) {
+        setError('Backend API URL (VITE_API_URL) is not configured for this Vercel deployment.');
       } else {
         setError('Unable to connect to Event Artemis server. Please try again.');
       }

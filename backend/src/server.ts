@@ -9,9 +9,10 @@ const app = createApp();
 const server = http.createServer(app);
 initSocket(server);
 
-server.listen(env.port, () => {
-  console.log(`Event Artemis API running on http://localhost:${env.port}`);
-  console.log(`Swagger Docs available at http://localhost:${env.port}/api/docs`);
+server.listen(env.port, '0.0.0.0', () => {
+  console.log(`Event Artemis API running on http://0.0.0.0:${env.port}`);
+  console.log(`Allowed CORS origins: ${env.corsOrigins.join(', ')}`);
+  console.log(`Swagger Docs available at http://0.0.0.0:${env.port}/api/docs`);
   if (env.worker.enableInProcess && env.nodeEnv !== 'test') {
     void startBackgroundWorker();
   }

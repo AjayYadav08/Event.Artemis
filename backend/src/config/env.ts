@@ -3,10 +3,27 @@ import path from 'path';
 
 dotenv.config({ path: path.resolve(process.cwd(), '.env') });
 
+const normalizeOrigin = (url: string) => url.trim().replace(/\/+$/, '');
+
+const rawFrontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+const rawCorsOrigins = process.env.CORS_ORIGINS || '';
+const parsedCorsOrigins = Array.from(
+  new Set(
+    [
+      rawFrontendUrl,
+      ...rawCorsOrigins.split(',').map((s) => s.trim()).filter(Boolean),
+      ...(process.env.NODE_ENV !== 'production' ? ['http://localhost:5173', 'http://127.0.0.1:5173'] : []),
+    ]
+      .filter(Boolean)
+      .map(normalizeOrigin)
+  )
+);
+
 export const env = {
   nodeEnv: process.env.NODE_ENV || 'development',
   port: parseInt(process.env.PORT || '4000', 10),
-  frontendUrl: process.env.FRONTEND_URL || 'http://localhost:5173',
+  frontendUrl: normalizeOrigin(rawFrontendUrl),
+  corsOrigins: parsedCorsOrigins,
   databaseUrl: process.env.DATABASE_URL || '',
   jwtAccessSecret: process.env.JWT_ACCESS_SECRET || 'dev-access-secret-change-in-prod',
   jwtRefreshSecret: process.env.JWT_REFRESH_SECRET || 'dev-refresh-secret-change-in-prod',
