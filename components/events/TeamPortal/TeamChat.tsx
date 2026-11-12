@@ -1,6 +1,8 @@
 import React, { useRef, useEffect, useState, useMemo } from 'react';
 import { X, Check, Play, Pause, Mic, Download, ExternalLink, FileText, Eye, Trash2, Users, AlertTriangle, Ban, ChevronDown } from 'lucide-react';
 import { Team, ChatMessage, ChatAttachment } from '../types';
+import { chatService } from '../../../services/chatService';
+import { getAccessToken } from '../../../services/apiClient';
 
 interface TeamChatProps {
   activeTeam: Team;
@@ -488,43 +490,53 @@ const TeamChat: React.FC<TeamChatProps> = ({
     }
   };
 
-  const handleFileAttach = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileAttach = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = () => {
-      const dataUrl = reader.result as string;
-      const att: ChatAttachment = {
-        id: `att_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-        name: file.name,
-        url: dataUrl,
-        size: file.size,
-        type: file.type || (file.name.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'application/octet-stream')
-      };
-      setPendingAttachment(att);
-      textareaRef.current?.focus();
-    };
-    reader.readAsDataURL(file);
     e.target.value = '';
+
+    try {
+      const uploaded = await chatService.uploadAttachment(file, activeTeam.id);
+      setPendingAttachment(uploaded);
+      textareaRef.current?.focus();
+    } catch (err) {
+      console.error('Failed to upload attachment:', err);
+    }
   };
 
-  const handleOpenAttachment = (att: ChatAttachment) => {
+  const handleOpenAttachment = async (att: ChatAttachment) => {
     const isImage = att.type.startsWith('image/') || /\.(png|jpe?g|gif|webp|svg)$/i.test(att.name);
     const isPdf = att.type === 'application/pdf' || att.name.toLowerCase().endsWith('.pdf');
 
+    let resolvedUrl = att.url;
+    if (att.url.includes('/api/v1/attachments/')) {
+      try {
+        const token = getAccessToken();
+        const res = await fetch(att.url, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+          credentials: 'include',
+        });
+        if (!res.ok) throw new Error('Failed to fetch attachment');
+        const blob = await res.blob();
+        resolvedUrl = URL.createObjectURL(blob);
+      } catch (err) {
+        console.error('Failed to download authorized attachment:', err);
+        return;
+      }
+    }
+
     if (isImage) {
-      setPreviewMedia({ url: att.url, name: att.name, type: 'image' });
+      setPreviewMedia({ url: resolvedUrl, name: att.name, type: 'image' });
       return;
     }
     if (isPdf) {
-      setPreviewMedia({ url: att.url, name: att.name, type: 'pdf' });
+      setPreviewMedia({ url: resolvedUrl, name: att.name, type: 'pdf' });
       return;
     }
 
     // Direct download for any other file type
     const a = document.createElement('a');
-    a.href = att.url;
+    a.href = resolvedUrl;
     a.download = att.name;
     document.body.appendChild(a);
     a.click();

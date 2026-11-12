@@ -1,16 +1,32 @@
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { QueryClient, QueryClientProvider, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Sidebar } from './components/Sidebar';
 import { TopBar, Notification } from './components/TopBar';
 import { MainDashboard } from './components/MainDashboard';
 import { RightPanel } from './components/RightPanel';
 import { FullCalendarPage } from './components/FullCalendarPage';
-import { EventsPage, EVENTS_MOCK, CampusEvent } from './components/EventsPage';
+import { EventsPage, CampusEvent } from './components/EventsPage';
+import { LoginPage } from './components/LoginPage';
 import { MessageSquareWarning, Ghost, ArrowRight, X, Radio, BellRing, Layout } from 'lucide-react';
 
 import { TutorialProvider, useTutorial } from './components/tutorial/TutorialContext';
 import { TutorialOverlay } from './components/TutorialOverlay';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { authService, AuthUser } from './services/authService';
+import { eventsService } from './services/eventsService';
+import { setOnSessionExpired } from './services/apiClient';
+import { connectSocket, disconnectSocket } from './services/socketClient';
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 30_000,
+      retry: 1,
+      refetchOnWindowFocus: false,
+    },
+  },
+});
 
 // Helper to strictly parse event dates for comparison
 const parseEventDate = (dateStr: string) => {
@@ -40,6 +56,38 @@ interface ToastItem {
 
 const MainApp: React.FC = () => {
   const { activeFlow, startFlow, advanceStep, currentStepIndex } = useTutorial();
+  const qc = useQueryClient();
+
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
+  const [isAuthChecking, setIsAuthChecking] = useState(true);
+
+  useEffect(() => {
+    setOnSessionExpired(() => {
+      disconnectSocket();
+      setCurrentUser(null);
+    });
+    authService.restoreSession().then((user) => {
+      setCurrentUser(user);
+      setIsAuthChecking(false);
+    });
+    return () => setOnSessionExpired(null);
+  }, []);
+
+  useEffect(() => {
+    if (currentUser) {
+      connectSocket();
+    } else {
+      disconnectSocket();
+    }
+  }, [currentUser]);
+
+  const handleLogout = async () => {
+    await authService.logout();
+    disconnectSocket();
+    qc.clear();
+    setCurrentUser(null);
+  };
+
   const [activeTab, setActiveTab] = useState('Home');
   const [eventsPageKey, setEventsPageKey] = useState(0);
   const [isMiniCalendarOpen, setIsMiniCalendarOpen] = useState(() => {
@@ -58,14 +106,39 @@ const MainApp: React.FC = () => {
 
   // State to track if we are in a deep detail view (to hide navbars)
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
-  
-  // Global Mocking State
-  const [interestedIds, setInterestedIds] = useState<Set<string>>(new Set());
+
+  // Backend-synced Events, Interested, and Registered state
+  const { data: backendEvents = [] } = useQuery({
+    queryKey: ['events'],
+    queryFn: () => eventsService.list({ limit: 100 }),
+    enabled: Boolean(currentUser),
+  });
+
+  const { data: backendInterested = [] } = useQuery({
+    queryKey: ['events', 'interested'],
+    queryFn: () => eventsService.getMyInterested(),
+    enabled: Boolean(currentUser),
+  });
+
+  const { data: backendRegistered = [] } = useQuery({
+    queryKey: ['events', 'registered'],
+    queryFn: () => eventsService.getMyRegistered(),
+    enabled: Boolean(currentUser),
+  });
+
   const [notInterestedIds, setNotInterestedIds] = useState<Set<string>>(new Set());
-  const [registeredIds, setRegisteredIds] = useState<Set<string>>(new Set());
-  
-  // Initialize with some IDs already "viewed" so the user doesn't see everything as NEW
-  const [viewedEventIds, setViewedEventIds] = useState<Set<string>>(new Set(['e_mumbai', 'e2', 'e_design', 'e_cloud'])); 
+
+  const interestedIds = useMemo(
+    () => new Set(backendInterested.map((e) => e.id)),
+    [backendInterested]
+  );
+
+  const registeredIds = useMemo(
+    () => new Set(backendRegistered),
+    [backendRegistered]
+  );
+
+  const [viewedEventIds, setViewedEventIds] = useState<Set<string>>(new Set());
 
   const [toasts, setToasts] = useState<ToastItem[]>([]);
   const toastsRef = useRef<ToastItem[]>([]);
@@ -84,7 +157,7 @@ const MainApp: React.FC = () => {
     const today = new Date();
     today.setHours(0,0,0,0);
     
-    return EVENTS_MOCK.filter(e => {
+    return backendEvents.filter(e => {
       const eDate = parseEventDate(e.date);
       // Ignore past events
       if (eDate < today) return false;
@@ -92,7 +165,7 @@ const MainApp: React.FC = () => {
       if (viewedEventIds.has(e.id)) return false;
       return true;
     }).length;
-  }, [viewedEventIds]);
+  }, [backendEvents, viewedEventIds]);
 
   const handleTabChange = (tab: string) => {
     // Tutorial progression check
@@ -188,71 +261,73 @@ const MainApp: React.FC = () => {
     }, 300);
   };
 
-  const toggleInterested = (id: string) => {
-    setInterestedIds(prev => {
-      const next = new Set(prev);
-      if (next.has(id)) {
-        next.delete(id);
+  const toggleInterested = async (id: string) => {
+    const currentlyInterested = interestedIds.has(id);
+    try {
+      if (currentlyInterested) {
+        await eventsService.removeInterest(id);
       } else {
-        next.add(id);
+        await eventsService.markInterested(id);
         setNotInterestedIds(old => {
-           const updated = new Set(old);
-           updated.delete(id);
-           return updated;
+          const updated = new Set(old);
+          updated.delete(id);
+          return updated;
         });
-        
-        // Immediate Feedback Toast
-        const event = EVENTS_MOCK.find(e => e.id === id);
+
+        const event = backendEvents.find(e => e.id === id);
         const today = new Date();
         today.setHours(0,0,0,0);
-        
+
         if (event && !registeredIds.has(id)) {
-           const eDate = parseEventDate(event.date);
-           if (eDate >= today) {
-              const jokes = [
-                "Added to interested. We both know you'll probably sleep through it.",
-                "Interested? Bold claim for someone with your attendance record.",
-                "Saved. Now comes the hard part: actually showing up.",
-                `"Interested" is the biggest lie in tech. Prove me wrong.`
-              ];
-              
-              const randomJoke = event.jokes.length > 0
-                ? event.jokes[Math.floor(Math.random() * event.jokes.length)] 
-                : jokes[Math.floor(Math.random() * jokes.length)];
-                
-              addToast(randomJoke, event.title, event.id, true);
-           }
+          const eDate = parseEventDate(event.date);
+          if (eDate >= today) {
+            const jokes = [
+              "Added to interested. We both know you'll probably sleep through it.",
+              "Interested? Bold claim for someone with your attendance record.",
+              "Saved. Now comes the hard part: actually showing up.",
+              `"Interested" is the biggest lie in tech. Prove me wrong.`
+            ];
+            const randomJoke = event.jokes && event.jokes.length > 0
+              ? event.jokes[Math.floor(Math.random() * event.jokes.length)]
+              : jokes[Math.floor(Math.random() * jokes.length)];
+            addToast(randomJoke, event.title, event.id, true);
+          }
         }
       }
-      return next;
-    });
+      await qc.invalidateQueries({ queryKey: ['events'] });
+    } catch (err) {
+      console.error('Failed to toggle event interest:', err);
+    }
   };
 
-  const markNotInterested = (id: string) => {
+  const markNotInterested = async (id: string) => {
     setNotInterestedIds(prev => {
        const next = new Set(prev);
        if (next.has(id)) {
           next.delete(id);
        } else {
           next.add(id);
-          setInterestedIds(old => {
-             const updated = new Set(old);
-             updated.delete(id);
-             return updated;
-          });
        }
        return next;
     });
-    // Instant removal for this context is fine
+    if (interestedIds.has(id)) {
+      try {
+        await eventsService.removeInterest(id);
+        await qc.invalidateQueries({ queryKey: ['events'] });
+      } catch (err) {
+        console.error('Failed to remove interest:', err);
+      }
+    }
     setToasts(prev => prev.filter(t => t.eventId !== id));
   };
 
-  const handleRegister = (id: string) => {
-    setRegisteredIds(prev => {
-      const next = new Set(prev);
-      next.add(id);
-      return next;
-    });
+  const handleRegister = async (id: string) => {
+    try {
+      await eventsService.register(id);
+      await qc.invalidateQueries({ queryKey: ['events'] });
+    } catch (err) {
+      console.error('Failed to register for event:', err);
+    }
     setToasts(prev => prev.filter(t => t.eventId !== id));
   };
 
@@ -274,7 +349,7 @@ const MainApp: React.FC = () => {
       const now = new Date();
       now.setHours(0,0,0,0);
 
-      const eligibleEvents = EVENTS_MOCK.filter(e => {
+      const eligibleEvents = backendEvents.filter(e => {
           if (registeredIds.has(e.id)) return false;
           if (notInterestedIds.has(e.id)) return false;
           const eDate = parseEventDate(e.date);
@@ -364,16 +439,17 @@ const MainApp: React.FC = () => {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [interestedIds, registeredIds, notInterestedIds]);
+  }, [backendEvents, interestedIds, registeredIds, notInterestedIds]);
 
   const renderContent = () => {
     switch (activeTab) {
       case 'Calendar':
-        return <FullCalendarPage />;
+        return <FullCalendarPage events={backendEvents} />;
       case 'Events':
         return (
           <EventsPage 
             key={eventsPageKey}
+            currentUser={currentUser}
             selectedDate={selectedGlobalDate} 
             setSelectedDate={setSelectedGlobalDate}
             isCalendarOpen={isMiniCalendarOpen}
@@ -396,6 +472,21 @@ const MainApp: React.FC = () => {
         return <MainDashboard />;
     }
   };
+
+  if (isAuthChecking) {
+    return (
+      <div className="h-screen w-full bg-[#fcfdfe] flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-10 h-10 rounded-2xl border-4 border-blue-100 border-t-[#0070F3] animate-spin" />
+          <p className="text-xs font-bold text-slate-500 tracking-wide uppercase">Restoring Session...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!currentUser) {
+    return <LoginPage onLogin={(user) => setCurrentUser(user)} />;
+  }
 
   return (
     <div className="flex flex-col h-screen w-full bg-white overflow-hidden text-slate-700 relative selection:bg-blue-100 selection:text-blue-900">
@@ -534,6 +625,8 @@ const MainApp: React.FC = () => {
           }}
           onClearNotifications={clearNotifications}
           onMarkRead={markNotificationsRead}
+          currentUser={currentUser}
+          onLogout={handleLogout}
         />
       )}
 
@@ -563,9 +656,11 @@ const MainApp: React.FC = () => {
 const App: React.FC = () => {
   return (
     <ErrorBoundary>
-      <TutorialProvider>
-        <MainApp />
-      </TutorialProvider>
+      <QueryClientProvider client={queryClient}>
+        <TutorialProvider>
+          <MainApp />
+        </TutorialProvider>
+      </QueryClientProvider>
     </ErrorBoundary>
   );
 };

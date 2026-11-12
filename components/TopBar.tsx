@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { ChevronDown, Users, Bell, Trash2, Zap } from 'lucide-react';
+import { ChevronDown, Users, Bell, Trash2, Zap, LogOut } from 'lucide-react';
 
 export interface Notification {
   id: number;
@@ -15,16 +15,22 @@ interface TopBarProps {
   onNotificationClick?: (eventId: string) => void;
   onClearNotifications?: () => void;
   onMarkRead?: () => void;
+  currentUser?: { name: string; email: string; role?: string } | null;
+  onLogout?: () => void;
 }
 
 export const TopBar: React.FC<TopBarProps> = ({ 
   notifications = [], 
   onNotificationClick = () => {}, 
   onClearNotifications = () => {},
-  onMarkRead = () => {}
+  onMarkRead = () => {},
+  currentUser = null,
+  onLogout
 }) => {
   const [isOpen, setIsOpen] = useState(false);
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const profileRef = useRef<HTMLDivElement>(null);
 
   const unreadCount = notifications.filter(n => !n.read).length;
 
@@ -32,6 +38,9 @@ export const TopBar: React.FC<TopBarProps> = ({
     const handleClickOutside = (event: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setIsOpen(false);
+      }
+      if (profileRef.current && !profileRef.current.contains(event.target as Node)) {
+        setIsProfileOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -158,8 +167,44 @@ export const TopBar: React.FC<TopBarProps> = ({
         </div>
 
         {/* User Avatar */}
-        <div className="w-9 h-9 rounded-full overflow-hidden border border-slate-300 shrink-0 cursor-pointer hover:opacity-90 transition-opacity">
-          <img src="/avatar.png" alt="Profile" className="w-full h-full object-cover" />
+        <div className="relative" ref={profileRef}>
+          <button
+            type="button"
+            onClick={() => setIsProfileOpen((prev) => !prev)}
+            className="w-9 h-9 rounded-full overflow-hidden border border-slate-300 shrink-0 cursor-pointer hover:opacity-90 transition-opacity block"
+            title={currentUser ? `${currentUser.name} (${currentUser.email})` : 'Account'}
+          >
+            <img src="/avatar.png" alt="Profile" className="w-full h-full object-cover" />
+          </button>
+
+          {isProfileOpen && (
+            <div className="absolute top-full right-0 mt-2 w-64 bg-white rounded-2xl shadow-2xl border border-slate-100 overflow-hidden z-50 animate-in fade-in zoom-in-95 duration-150">
+              {currentUser && (
+                <div className="p-3.5 border-b border-slate-100 bg-slate-50/50">
+                  <p className="text-xs font-bold text-slate-900 truncate">{currentUser.name}</p>
+                  <p className="text-[11px] text-slate-500 truncate mt-0.5">{currentUser.email}</p>
+                  {currentUser.role && (
+                    <span className="inline-block mt-1.5 px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 text-[10px] font-bold uppercase tracking-wider">
+                      {currentUser.role}
+                    </span>
+                  )}
+                </div>
+              )}
+              {onLogout && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsProfileOpen(false);
+                    onLogout();
+                  }}
+                  className="w-full px-3.5 py-2.5 text-left text-xs font-semibold text-rose-600 hover:bg-rose-50 transition-colors flex items-center gap-2"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                  Sign out
+                </button>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </header>

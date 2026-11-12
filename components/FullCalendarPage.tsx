@@ -40,8 +40,13 @@ const parseDate = (dateStr: string) => {
   };
 };
 
-export const FullCalendarPage: React.FC = () => {
-  const [currentMonth, setCurrentMonth] = useState(0); 
+interface FullCalendarPageProps {
+  events?: CampusEvent[];
+}
+
+export const FullCalendarPage: React.FC<FullCalendarPageProps> = ({ events }) => {
+  const sourceEvents = events && events.length > 0 ? events : EVENTS_MOCK;
+  const [currentMonth, setCurrentMonth] = useState(4); 
   const [currentYear, setCurrentYear] = useState(2026);
   const [selectedDate, setSelectedDate] = useState<number | null>(null);
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
@@ -60,7 +65,7 @@ export const FullCalendarPage: React.FC = () => {
 
   // Filter and Process Events for Calendar
   const calendarEvents = useMemo(() => {
-    return EVENTS_MOCK.map(e => {
+    return sourceEvents.map(e => {
        const parsed = parseDate(e.date);
        return {
          ...e,
@@ -79,7 +84,7 @@ export const FullCalendarPage: React.FC = () => {
     : [];
 
   const selectedEvent = selectedEventId 
-    ? EVENTS_MOCK.find(e => e.id === selectedEventId)
+    ? sourceEvents.find(e => e.id === selectedEventId)
     : null;
 
   const getEventColor = (category: string) => {

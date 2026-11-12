@@ -81,6 +81,11 @@ import { parseDateTime } from './events/utils';
 import { useEventsData } from './events/useEventsData';
 import { MiniFloatingCalendar } from './MiniFloatingCalendar';
 import { EventsFeedSkeleton, EventsErrorScreen, EventsEmptyScreen } from './events/EventsLoadingScreen';
+import { eventsService } from '../services/eventsService';
+import { teamsService } from '../services/teamsService';
+import { chatService } from '../services/chatService';
+import { AuthUser } from '../services/authService';
+import { getSocket } from '../services/socketClient';
 
 // -- Mock Helpers & Constants --
 const TODAY_DAY = new Date().getDate();
@@ -916,6 +921,7 @@ export const SAMPLE_JOIN_REQUESTS: Record<string, JoinRequest[]> = {
 
 
 interface EventsPageProps {
+  currentUser?: AuthUser | null;
   selectedDate: number | null;
   setSelectedDate?: (date: number | null) => void;
   isCalendarOpen: boolean;
@@ -935,6 +941,7 @@ interface EventsPageProps {
 }
 
 export const EventsPage: React.FC<EventsPageProps> = ({ 
+  currentUser,
   selectedDate, 
   setSelectedDate,
   isCalendarOpen, 
@@ -975,6 +982,8 @@ export const EventsPage: React.FC<EventsPageProps> = ({
       setInternalSelectedDate(date);
     }
   };
+  const eventsFetcher = useCallback(() => eventsService.list({ limit: 100 }), []);
+
   // Event data management with full async loading/error/empty lifecycle
   const { 
     events, 
@@ -983,7 +992,7 @@ export const EventsPage: React.FC<EventsPageProps> = ({
     isEmpty, 
     error: loadError, 
     refetch: refetchEvents 
-  } = useEventsData({ fallbackData: EVENTS_MOCK });
+  } = useEventsData({ fetcher: eventsFetcher, fallbackData: EVENTS_MOCK });
 
   const [activeFilter, setActiveFilter] = useState('All');
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
@@ -995,13 +1004,70 @@ export const EventsPage: React.FC<EventsPageProps> = ({
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [showBackToTop, setShowBackToTop] = useState(false);
 
-  // Teams feature state
+  // Teams feature state (backed by API)
   const [showTeamsView, setShowTeamsView] = useState(false);
-  const [teams, setTeams] = useState<Team[]>(MOCK_TEAMS);
-  const [activeTeam, setActiveTeam] = useState<Team | null>(MOCK_TEAMS[0] || null);
+  const [teams, setTeams] = useState<Team[]>([]);
+  const [availableTeamsPool, setAvailableTeamsPool] = useState<Team[]>([]);
+  const [activeTeam, setActiveTeam] = useState<Team | null>(null);
   const [showTeamMembers, setShowTeamMembers] = useState(false);
   const [showCreateTeamForm, setShowCreateTeamForm] = useState(false);
   const [showJoinTeamView, setShowJoinTeamView] = useState(true);
+
+  const loadTeamsData = useCallback(async () => {
+    if (!currentUser) return;
+    try {
+      const [myTeams, allAvailable, myReqs] = await Promise.all([
+        teamsService.listMyTeams(),
+        teamsService.listAvailable(),
+        teamsService.listMyRequests(),
+      ]);
+
+      setTeams(myTeams);
+      setAvailableTeamsPool(allAvailable);
+
+      const hostsMap: Record<string, string> = {};
+      myTeams.forEach((t) => {
+        hostsMap[t.id] = t.hostId || t.members[0]?.id || currentUser.id;
+      });
+      setTeamHosts(hostsMap);
+
+      // Load team requests for hosted/admin teams + user's own previous requests
+      const reqsByTeam: Record<string, JoinRequest[]> = {};
+      myReqs.forEach((r) => {
+        reqsByTeam[r.teamId] = [...(reqsByTeam[r.teamId] || []), r];
+      });
+
+      await Promise.all(
+        myTeams.map(async (t) => {
+          try {
+            const teamReqs = await teamsService.listTeamRequests(t.id);
+            const existingIds = new Set((reqsByTeam[t.id] || []).map((r) => r.id));
+            const merged = [...(reqsByTeam[t.id] || [])];
+            teamReqs.forEach((tr) => {
+              if (!existingIds.has(tr.id)) merged.push(tr);
+            });
+            reqsByTeam[t.id] = merged;
+          } catch {
+            // User is not host/admin of this team; skip team-level requests
+          }
+        })
+      );
+      setJoinRequests(reqsByTeam);
+
+      setActiveTeam((prev) => {
+        if (prev && myTeams.some((t) => t.id === prev.id)) {
+          return myTeams.find((t) => t.id === prev.id) || prev;
+        }
+        return myTeams[0] || null;
+      });
+    } catch (err) {
+      console.error('Failed to load teams data:', err);
+    }
+  }, [currentUser]);
+
+  useEffect(() => {
+    loadTeamsData();
+  }, [loadTeamsData]);
 
   // Whenever the user opens the Teams section, Discover Teams must open by default
   useEffect(() => {
@@ -1010,8 +1076,9 @@ export const EventsPage: React.FC<EventsPageProps> = ({
       setShowCreateTeamForm(false);
       setShowTeamMembers(false);
       setPreviewingTeam(null);
+      loadTeamsData();
     }
-  }, [showTeamsView]);
+  }, [showTeamsView, loadTeamsData]);
 
   useEffect(() => {
     onTeamsViewToggle?.(showTeamsView);
@@ -1024,97 +1091,145 @@ export const EventsPage: React.FC<EventsPageProps> = ({
     maxMembers: 4
   });
   const [chatInput, setChatInput] = useState('');
-  const [teamMessages, setTeamMessages] = useState<Record<string, ChatMessage[]>>(() => {
-    try {
-      const saved = localStorage.getItem('artemis_team_messages_v4');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (parsed && typeof parsed === 'object') return parsed;
-      }
-    } catch {}
-    return MOCK_TEAMS.reduce((acc, t) => ({ ...acc, [t.id]: t.messages }), {} as Record<string, ChatMessage[]>);
-  });
+  const [teamMessages, setTeamMessages] = useState<Record<string, ChatMessage[]>>({});
   const chatEndRef = useRef<HTMLDivElement>(null);
 
+  // Fetch persistent chat messages & subscribe to real-time Socket.IO events for activeTeam
   useEffect(() => {
-    try {
-      localStorage.setItem('artemis_team_messages_v4', JSON.stringify(teamMessages));
-    } catch (e) {
-      console.warn('Could not persist messages', e);
-    }
-  }, [teamMessages]);
+    if (!activeTeam || !currentUser) return;
+    let isCancelled = false;
 
-  const sendMessage = useCallback((
+    chatService
+      .listMessages(activeTeam.id)
+      .then((msgs) => {
+        if (!isCancelled) {
+          setTeamMessages((prev) => ({ ...prev, [activeTeam.id]: msgs }));
+        }
+      })
+      .catch((err) => console.error('Failed to load chat history:', err));
+
+    const socket = getSocket();
+    if (socket) {
+      socket.emit('team:join', activeTeam.id);
+
+      const handleNewMsg = (msg: ChatMessage) => {
+        setTeamMessages((prev) => {
+          const list = prev[activeTeam.id] || [];
+          if (list.some((m) => m.id === msg.id)) return prev;
+          return {
+            ...prev,
+            [activeTeam.id]: [
+              ...list,
+              { ...msg, isMe: msg.senderId === currentUser.id },
+            ],
+          };
+        });
+      };
+
+      const handleDeletedMsg = (payload: {
+        messageId: string;
+        deleteType: string;
+        message?: ChatMessage;
+      }) => {
+        if (payload.deleteType === 'forEveryone') {
+          setTeamMessages((prev) => ({
+            ...prev,
+            [activeTeam.id]: (prev[activeTeam.id] || []).map((m) =>
+              m.id === payload.messageId
+                ? {
+                    ...m,
+                    deletedForEveryone: true,
+                    text: 'This message was deleted',
+                    audioUrl: undefined,
+                    audioDuration: undefined,
+                    attachment: undefined,
+                  }
+                : m
+            ),
+          }));
+        }
+      };
+
+      socket.on('message:new', handleNewMsg);
+      socket.on('message:deleted', handleDeletedMsg);
+
+      return () => {
+        isCancelled = true;
+        socket.emit('team:leave', activeTeam.id);
+        socket.off('message:new', handleNewMsg);
+        socket.off('message:deleted', handleDeletedMsg);
+      };
+    }
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [activeTeam, currentUser]);
+
+  const sendMessage = useCallback(async (
     customText?: string, 
     audioData?: { url?: string; duration?: number },
     attachmentData?: ChatAttachment
   ) => {
     const textToSend = customText !== undefined ? customText : chatInput;
     if ((!textToSend.trim() && !attachmentData) || !activeTeam) return;
-    const now = new Date();
-    const newMsg: ChatMessage = {
-      id: `msg_${Date.now()}`,
-      senderId: 'me',
-      senderName: 'Ajay',
-      text: textToSend.trim(),
-      timestamp: now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      date: now.toISOString(),
-      createdAt: now.getTime(),
-      isMe: true,
-      audioUrl: audioData?.url,
-      audioDuration: audioData?.duration,
-      attachment: attachmentData
-    };
-    setTeamMessages(prev => ({ ...prev, [activeTeam.id]: [...(prev[activeTeam.id] || []), newMsg] }));
-    setChatInput('');
+
+    try {
+      const sent = await chatService.sendMessage(activeTeam.id, {
+        content: textToSend.trim(),
+        messageType: attachmentData ? 'ATTACHMENT' : audioData ? 'AUDIO' : 'TEXT',
+        audioUrl: audioData?.url,
+        audioDuration: audioData?.duration,
+        attachmentId: attachmentData?.id,
+      });
+
+      setTeamMessages((prev) => {
+        const list = prev[activeTeam.id] || [];
+        if (list.some((m) => m.id === sent.id)) return prev;
+        return { ...prev, [activeTeam.id]: [...list, sent] };
+      });
+      setChatInput('');
+    } catch (err) {
+      console.error('Failed to send message:', err);
+    }
   }, [chatInput, activeTeam]);
 
-  const handleDeleteMessage = useCallback((
+  const handleDeleteMessage = useCallback(async (
     teamId: string,
     messageId: string,
     deleteType: 'forMe' | 'forEveryone',
-    userId: string = 'me'
+    userId: string = currentUser?.id || 'me'
   ) => {
-    setTeamMessages(prev => {
-      const currentMsgs = prev[teamId] || [];
-      if (deleteType === 'forEveryone') {
-        // Replace with deleted-message placeholder for all participants
+    try {
+      await chatService.deleteMessage(messageId, deleteType);
+      setTeamMessages((prev) => {
+        const currentMsgs = prev[teamId] || [];
+        if (deleteType === 'forEveryone') {
+          return {
+            ...prev,
+            [teamId]: currentMsgs.map((m) =>
+              m.id === messageId
+                ? {
+                    ...m,
+                    deletedForEveryone: true,
+                    text: 'This message was deleted',
+                    audioUrl: undefined,
+                    audioDuration: undefined,
+                    attachment: undefined,
+                  }
+                : m
+            ),
+          };
+        }
         return {
           ...prev,
-          [teamId]: currentMsgs.map(m => {
-            if (m.id === messageId) {
-              return {
-                ...m,
-                deletedForEveryone: true,
-                text: 'This message was deleted',
-                audioUrl: undefined,
-                audioDuration: undefined,
-                attachment: undefined
-              };
-            }
-            return m;
-          })
+          [teamId]: currentMsgs.filter((m) => m.id !== messageId),
         };
-      } else {
-        // Delete for Me: mark as deleted for the specified user view
-        return {
-          ...prev,
-          [teamId]: currentMsgs.map(m => {
-            if (m.id === messageId) {
-              const currentDeletedUsers = m.deletedForUsers || [];
-              return {
-                ...m,
-                deletedForUsers: currentDeletedUsers.includes(userId)
-                  ? currentDeletedUsers
-                  : [...currentDeletedUsers, userId]
-              };
-            }
-            return m;
-          })
-        };
-      }
-    });
-  }, []);
+      });
+    } catch (err) {
+      console.error('Failed to delete message:', err);
+    }
+  }, [currentUser]);
 
   // Keep the page scroll container at top when a team is selected so the team header remains visible
   useEffect(() => {
@@ -1124,9 +1239,7 @@ export const EventsPage: React.FC<EventsPageProps> = ({
   }, [activeTeam]);
 
   // Host & Rating state
-  const [teamHosts, setTeamHosts] = useState<Record<string, string>>(
-    MOCK_TEAMS.reduce((acc, t) => ({ ...acc, [t.id]: 'me' }), {} as Record<string, string>)
-  );
+  const [teamHosts, setTeamHosts] = useState<Record<string, string>>({});
   const [removedMembers, setRemovedMembers] = useState<Record<string, Set<string>>>({});
   const [confirmRemoveTarget, setConfirmRemoveTarget] = useState<string | null>(null);
   const [ratingTarget, setRatingTarget] = useState<string | null>(null);
@@ -1134,7 +1247,7 @@ export const EventsPage: React.FC<EventsPageProps> = ({
   const [ratingFeedback, setRatingFeedback] = useState('');
 
   // Join Request State
-  const [joinRequests, setJoinRequests] = useState<Record<string, JoinRequest[]>>(SAMPLE_JOIN_REQUESTS);
+  const [joinRequests, setJoinRequests] = useState<Record<string, JoinRequest[]>>({});
   const [previewingTeam, setPreviewingTeam] = useState<Team | null>(null);
   const [joinRequestMessage, setJoinRequestMessage] = useState('');
   const [isSendingRequest, setIsSendingRequest] = useState(false);
@@ -1143,92 +1256,96 @@ export const EventsPage: React.FC<EventsPageProps> = ({
   const [submittedRatings, setSubmittedRatings] = useState<Record<string, { stars: number; feedback: string }>>({});
   const [ratingToast, setRatingToast] = useState(false);
 
-  const isHost = activeTeam ? teamHosts[activeTeam.id] === 'me' : false;
+  const isHost = activeTeam && currentUser ? teamHosts[activeTeam.id] === currentUser.id : false;
 
-  const handleRemoveMember = useCallback((teamId: string, memberId: string) => {
-    setRemovedMembers(prev => {
-      const s = new Set(prev[teamId] || []);
-      s.add(memberId);
-      return { ...prev, [teamId]: s };
-    });
-  }, []);
+  const handleRemoveMember = useCallback(async (teamId: string, memberId: string) => {
+    try {
+      await teamsService.removeMember(teamId, memberId);
+      setRemovedMembers(prev => {
+        const s = new Set(prev[teamId] || []);
+        s.add(memberId);
+        return { ...prev, [teamId]: s };
+      });
+      await loadTeamsData();
+    } catch (err) {
+      console.error('Failed to remove member:', err);
+    }
+  }, [loadTeamsData]);
 
-  const handleMakeHost = useCallback((teamId: string, memberId: string) => {
-    setTeamHosts(prev => ({ ...prev, [teamId]: memberId }));
-  }, []);
+  const handleMakeHost = useCallback(async (teamId: string, memberId: string) => {
+    try {
+      await teamsService.makeHost(teamId, memberId);
+      setTeamHosts(prev => ({ ...prev, [teamId]: memberId }));
+      await loadTeamsData();
+    } catch (err) {
+      console.error('Failed to transfer host role:', err);
+    }
+  }, [loadTeamsData]);
 
-  const handleSubmitRating = useCallback(() => {
-    if (!ratingTarget || ratingStars === 0) return;
-    setSubmittedRatings(prev => ({ ...prev, [ratingTarget]: { stars: ratingStars, feedback: ratingFeedback } }));
-    setRatingTarget(null);
-    setRatingStars(0);
-    setRatingFeedback('');
-    setRatingToast(true);
-    setTimeout(() => setRatingToast(false), 2500);
-  }, [ratingTarget, ratingStars, ratingFeedback]);
+  const handleSubmitRating = useCallback(async () => {
+    if (!ratingTarget || ratingStars === 0 || !activeTeam) return;
+    try {
+      await teamsService.rateMember(activeTeam.id, ratingTarget, ratingStars, ratingFeedback);
+      setSubmittedRatings(prev => ({ ...prev, [ratingTarget]: { stars: ratingStars, feedback: ratingFeedback } }));
+      setRatingTarget(null);
+      setRatingStars(0);
+      setRatingFeedback('');
+      setRatingToast(true);
+      setTimeout(() => setRatingToast(false), 2500);
+    } catch (err) {
+      console.error('Failed to submit rating:', err);
+    }
+  }, [ratingTarget, ratingStars, ratingFeedback, activeTeam]);
 
-  const handleSendJoinRequest = (team: Team) => {
+  const handleSendJoinRequest = async (team: Team) => {
     setIsSendingRequest(true);
-    setTimeout(() => {
-      const newRequest: JoinRequest = {
-        id: `req_${Date.now()}`,
-        teamId: team.id,
-        teamName: team.name,
-        hackathon: team.hackathon,
-        userId: 'me',
-        userName: 'Ajay Yadav',
-        userAvatar: 'https://i.pravatar.cc/150?img=12',
-        message: joinRequestMessage.trim() || `Hi, I'd like to join ${team.name}!`,
-        timestamp: `Today, ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`,
-        status: 'Pending'
-      };
-      
+    try {
+      const createdReq = await teamsService.createJoinRequest(
+        team.id,
+        joinRequestMessage.trim() || `Hi, I'd like to join ${team.name}!`
+      );
       setJoinRequests(prev => ({
         ...prev,
-        [team.id]: [...(prev[team.id] || []), newRequest]
+        [team.id]: [...(prev[team.id] || []), createdReq]
       }));
-      
-      setIsSendingRequest(false);
       setJoinRequestMessage('');
       setPreviewingTeam(null);
       setRequestSentToast(true);
       setTimeout(() => setRequestSentToast(false), 3000);
-    }, 800);
+    } catch (err) {
+      console.error('Failed to submit join request:', err);
+    } finally {
+      setIsSendingRequest(false);
+    }
   };
 
-  const handleAcceptRequest = (request: JoinRequest) => {
-    const team = teams.find(t => t.id === request.teamId);
-    if (!team) return;
-
-    // Add member to team
-    const newMember: TeamMember = {
-      id: request.userId,
-      name: request.userName,
-      avatar: request.userAvatar,
-      role: 'Contributor',
-      skills: ['New Member']
-    };
-
-    setTeams(prev => prev.map(t => 
-      t.id === team.id ? { ...t, members: [...t.members, newMember] } : t
-    ));
-
-    // Update request status
-    setJoinRequests(prev => ({
-      ...prev,
-      [team.id]: (prev[team.id] || []).map(r => 
-        r.id === request.id ? { ...r, status: 'Accepted' } : r
-      )
-    }));
+  const handleAcceptRequest = async (request: JoinRequest) => {
+    try {
+      const updated = await teamsService.acceptRequest(request.id);
+      setJoinRequests(prev => ({
+        ...prev,
+        [request.teamId]: (prev[request.teamId] || []).map(r =>
+          r.id === request.id ? updated : r
+        )
+      }));
+      await loadTeamsData();
+    } catch (err) {
+      console.error('Failed to accept join request:', err);
+    }
   };
 
-  const handleRejectRequest = (request: JoinRequest) => {
-    setJoinRequests(prev => ({
-      ...prev,
-      [request.teamId]: (prev[request.teamId] || []).map(r => 
-        r.id === request.id ? { ...r, status: 'Rejected' } : r
-      )
-    }));
+  const handleRejectRequest = async (request: JoinRequest) => {
+    try {
+      const updated = await teamsService.rejectRequest(request.id);
+      setJoinRequests(prev => ({
+        ...prev,
+        [request.teamId]: (prev[request.teamId] || []).map(r =>
+          r.id === request.id ? updated : r
+        )
+      }));
+    } catch (err) {
+      console.error('Failed to reject join request:', err);
+    }
   };
 
   // Immediate scroll detection with threshold for compact card layout
@@ -1388,24 +1505,24 @@ export const EventsPage: React.FC<EventsPageProps> = ({
   };
 
 
-  const handleCreateTeam = () => {
+  const handleCreateTeam = async () => {
     if (!newTeamData.name) return;
-    const nt: Team = {
-      id: `t_${Date.now()}`,
-      name: newTeamData.name,
-      hackathon: newTeamData.hackathon || 'Campus Project',
-      description: newTeamData.description,
-      maxMembers: newTeamData.maxMembers || 4,
-      status: 'Open',
-      members: [
-        { id: 'me', name: 'Ajay Yadav', role: 'Team Lead', skills: ['Full-Stack'], avatar: 'https://i.pravatar.cc/150?img=12' }
-      ],
-      messages: []
-    };
-    setTeams([...teams, nt]);
-    setTeamHosts(prev => ({...prev, [nt.id]: 'me'}));
-    setShowCreateTeamForm(false);
-    setNewTeamData({ name: '', hackathon: '', description: '', maxMembers: 4 });
+    try {
+      const created = await teamsService.createTeam({
+        name: newTeamData.name,
+        hackathon: newTeamData.hackathon || 'Campus Project',
+        description: newTeamData.description,
+        maxMembers: newTeamData.maxMembers || 4,
+      });
+      setTeams((prev) => [created, ...prev]);
+      setAvailableTeamsPool((prev) => [created, ...prev]);
+      setTeamHosts((prev) => ({ ...prev, [created.id]: currentUser?.id || 'me' }));
+      setActiveTeam(created);
+      setShowCreateTeamForm(false);
+      setNewTeamData({ name: '', hackathon: '', description: '', maxMembers: 4 });
+    } catch (err) {
+      console.error('Failed to create team:', err);
+    }
   };
 
   const handleExploreEvent = useCallback((event: CampusEvent) => {
@@ -1504,7 +1621,7 @@ export const EventsPage: React.FC<EventsPageProps> = ({
             handleRejectRequest={handleRejectRequest}
             teamSearchQuery={discoverySearchQuery}
             setTeamSearchQuery={setDiscoverySearchQuery}
-            filteredTeamsPool={MOCK_TEAMS_POOL}
+            filteredTeamsPool={availableTeamsPool.filter(t => !teams.some(myT => myT.id === t.id))}
             previewingTeam={previewingTeam}
             setPreviewingTeam={setPreviewingTeam}
             joinRequestMessage={joinRequestMessage}

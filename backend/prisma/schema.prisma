@@ -1,0 +1,380 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  STUDENT
+  ORGANIZER
+  ADMIN
+}
+
+enum EventCategory {
+  Competition
+  Fest
+  Workshop
+  Seminar
+}
+
+enum EventStatus {
+  Live
+  Upcoming
+  Closed
+  Past
+}
+
+enum ParticipationMode {
+  Online
+  Offline
+  Hybrid
+}
+
+enum TeamMode {
+  Team
+  Solo
+  Both
+}
+
+enum LocationType {
+  OnCampus
+  OffCampus
+}
+
+enum ExtractionStatus {
+  MANUAL
+  PENDING
+  SYNCED
+  FAILED
+}
+
+enum DataProvenance {
+  MANUAL
+  AUTOMATED
+  HYBRID
+}
+
+enum RecruitmentStatus {
+  Open
+  Closed
+}
+
+enum TeamMemberRole {
+  HOST
+  ADMIN
+  MEMBER
+}
+
+enum RequestStatus {
+  Pending
+  Accepted
+  Rejected
+}
+
+enum MessageType {
+  TEXT
+  AUDIO
+  ATTACHMENT
+  SYSTEM
+}
+
+model User {
+  id           String   @id @default(uuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  profileImage String?
+  role         UserRole @default(STUDENT)
+  skills       String[] @default([])
+  xp           Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  refreshTokens      RefreshToken[]
+  createdEvents      Event[]             @relation("EventCreator")
+  eventInterests     EventInterest[]
+  eventRegistrations EventRegistration[]
+  createdTeams       Team[]              @relation("TeamCreator")
+  teamMemberships    TeamMembership[]
+  joinRequests       TeamJoinRequest[]
+  sentInvitations    TeamInvitation[]    @relation("InvitationSender")
+  receivedInvitations TeamInvitation[]   @relation("InvitationRecipient")
+  chatMessages       ChatMessage[]
+  messageDeletions   MessageDeletion[]
+  uploadedAttachments ChatAttachment[]
+  givenRatings       TeamRating[]        @relation("RatingGiver")
+  receivedRatings    TeamRating[]        @relation("RatingReceiver")
+
+  @@index([email])
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  tokenHash String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+model Event {
+  id                  String            @id @default(uuid())
+  title               String
+  category            EventCategory
+  type                EventStatus       @default(Upcoming)
+  date                String
+  dayOfMonth          Int
+  time                String
+  eventDate           DateTime
+  registrationStart   DateTime?
+  registrationDeadline DateTime?
+  location            String
+  campus              String?
+  domain              String
+  conductingAgency    String?
+  locationType        LocationType      @default(OnCampus)
+  participationMode   ParticipationMode @default(Offline)
+  teamMode            TeamMode          @default(Both)
+  registrationWindow  String?
+  registrationUrl     String?
+  xp                  Int               @default(0)
+  attendees           Int               @default(0)
+  sectionParticipants Int               @default(0)
+  featured            Boolean           @default(false)
+  description         String?
+  jokes               Json              @default("[]")
+  timeline            Json              @default("[]")
+  venueDetails        String            @default("")
+  prizePool           String?
+  tracks              Json              @default("[]")
+  posterUrl           String
+  eligibility         String            @default("All Students")
+  teamSize            String            @default("1-4 Members")
+  certification       Boolean           @default(true)
+  prizesList          Json              @default("[]")
+  sponsors            Json              @default("[]")
+  judges              Json              @default("[]")
+  rules               Json              @default("[]")
+  faqs                Json              @default("[]")
+  organizerContact    Json?
+  gallery             Json              @default("[]")
+  isPaid              Boolean           @default(false)
+  registrationFee     String            @default("Free")
+  duration            String?
+  rounds              Json              @default("[]")
+  dos                 Json              @default("[]")
+  donts               Json              @default("[]")
+
+  // Future Automation Compatibility Fields (Phase 2 ready)
+  sourceUrl            String?
+  sourceType           String?
+  externalSourceId     String?
+  lastSyncedAt         DateTime?
+  lastCheckedAt        DateTime?
+  nextSyncAt           DateTime?
+  extractionStatus     ExtractionStatus @default(MANUAL)
+  dataProvenance       DataProvenance   @default(MANUAL)
+  extractionConfidence Float?
+  sourceMetadata       Json?
+
+  createdById String?
+  createdBy   User?    @relation("EventCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  interests     EventInterest[]
+  registrations EventRegistration[]
+  fieldHistory  EventFieldHistory[]
+
+  @@index([category])
+  @@index([type])
+  @@index([eventDate])
+  @@index([registrationDeadline])
+  @@index([domain])
+  @@index([externalSourceId])
+}
+
+model EventFieldHistory {
+  id            String         @id @default(uuid())
+  eventId       String
+  event         Event          @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  fieldName     String
+  previousValue Json?
+  newValue      Json?
+  provenance    DataProvenance @default(MANUAL)
+  confidence    Float?
+  updatedById   String?
+  createdAt     DateTime       @default(now())
+
+  @@index([eventId, fieldName])
+}
+
+model EventInterest {
+  id        String   @id @default(uuid())
+  eventId   String
+  userId    String
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([eventId, userId])
+  @@index([userId])
+}
+
+model EventRegistration {
+  id        String   @id @default(uuid())
+  eventId   String
+  userId    String
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([eventId, userId])
+  @@index([userId])
+}
+
+model Team {
+  id                String            @id @default(uuid())
+  name              String
+  hackathon         String
+  description       String
+  goals             String?
+  expectations      String[]          @default([])
+  maxMembers        Int               @default(4)
+  recruitmentStatus RecruitmentStatus @default(Open)
+  location          String?
+  createdById       String
+  createdBy         User              @relation("TeamCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  memberships  TeamMembership[]
+  joinRequests TeamJoinRequest[]
+  invitations  TeamInvitation[]
+  messages     ChatMessage[]
+  attachments  ChatAttachment[]
+  ratings      TeamRating[]
+
+  @@index([recruitmentStatus])
+  @@index([createdById])
+}
+
+model TeamMembership {
+  id              String         @id @default(uuid())
+  teamId          String
+  userId          String
+  team            Team           @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  user            User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role            TeamMemberRole @default(MEMBER)
+  memberRoleTitle String         @default("Contributor")
+  skills          String[]       @default([])
+  joinedAt        DateTime       @default(now())
+
+  @@unique([teamId, userId])
+  @@index([userId])
+}
+
+model TeamJoinRequest {
+  id        String        @id @default(uuid())
+  teamId    String
+  userId    String
+  team      Team          @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  message   String
+  status    RequestStatus @default(Pending)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  @@index([teamId, status])
+  @@index([userId, status])
+}
+
+model TeamInvitation {
+  id          String        @id @default(uuid())
+  teamId      String
+  senderId    String
+  recipientId String
+  team        Team          @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  sender      User          @relation("InvitationSender", fields: [senderId], references: [id], onDelete: Cascade)
+  recipient   User          @relation("InvitationRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
+  message     String?
+  status      RequestStatus @default(Pending)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@index([recipientId, status])
+  @@index([teamId, recipientId])
+}
+
+model TeamRating {
+  id           String   @id @default(uuid())
+  teamId       String
+  raterId      String
+  targetUserId String
+  team         Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  rater        User     @relation("RatingGiver", fields: [raterId], references: [id], onDelete: Cascade)
+  targetUser   User     @relation("RatingReceiver", fields: [targetUserId], references: [id], onDelete: Cascade)
+  stars        Int
+  feedback     String?
+  createdAt    DateTime @default(now())
+
+  @@unique([teamId, raterId, targetUserId])
+}
+
+model ChatMessage {
+  id                   String      @id @default(uuid())
+  teamId               String
+  senderId             String
+  team                 Team        @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  sender               User        @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  content              String
+  messageType          MessageType @default(TEXT)
+  audioUrl             String?
+  audioDuration        Int?
+  deletedForEveryoneAt DateTime?
+  createdAt            DateTime    @default(now())
+  updatedAt            DateTime    @updatedAt
+
+  deletions   MessageDeletion[]
+  attachments ChatAttachment[]
+
+  @@index([teamId, createdAt])
+}
+
+model MessageDeletion {
+  id        String      @id @default(uuid())
+  messageId String
+  userId    String
+  message   ChatMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deletedAt DateTime    @default(now())
+
+  @@unique([messageId, userId])
+  @@index([userId])
+}
+
+model ChatAttachment {
+  id         String       @id @default(uuid())
+  messageId  String?
+  teamId     String?
+  uploaderId String
+  message    ChatMessage? @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  team       Team?        @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  uploader   User         @relation(fields: [uploaderId], references: [id], onDelete: Cascade)
+  fileName   String
+  fileType   String
+  fileSize   Int
+  storageKey String
+  fileUrl    String
+  createdAt  DateTime     @default(now())
+
+  @@index([messageId])
+  @@index([teamId])
+}
+
