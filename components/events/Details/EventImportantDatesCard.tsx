@@ -1,7 +1,13 @@
 import React from 'react';
 import { CalendarDays, Clock, Timer } from 'lucide-react';
 import { CampusEvent } from '../types';
-import { formatIsoDate, getRegistrationDeadline, hasValue } from './eventDetailsUtils';
+import {
+  formatIsoDate,
+  getRegistrationDeadline,
+  getUnifiedEventDate,
+  getUnifiedEventTime,
+  hasValue,
+} from './eventDetailsUtils';
 
 interface EventImportantDatesCardProps {
   event: CampusEvent;
@@ -49,7 +55,7 @@ const EventImportantDatesCard: React.FC<EventImportantDatesCardProps> = ({ event
           </span>
           <span className="text-sm font-bold text-slate-900 flex items-center gap-2">
             <CalendarDays className="w-4 h-4 text-blue-500 shrink-0" />
-            {event.date}{showEndDate ? ` – ${endDate}` : ''}
+            {getUnifiedEventDate(event)}{showEndDate ? ` – ${endDate}` : ''}
           </span>
         </div>
 
@@ -59,7 +65,7 @@ const EventImportantDatesCard: React.FC<EventImportantDatesCardProps> = ({ event
           </span>
           <span className="text-sm font-bold text-slate-800 flex items-center gap-2">
             <Clock className="w-4 h-4 text-blue-500 shrink-0" />
-            {isPast ? 'Event Concluded' : event.time}
+            {getUnifiedEventTime(event, isPast)}
             {!isPast && hasValue(event.timezone) ? ` (${event.timezone})` : ''}
           </span>
         </div>

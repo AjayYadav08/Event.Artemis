@@ -5,7 +5,13 @@ import {
 } from 'lucide-react';
 import { CampusEvent } from '../types';
 import ImageWithFallback from '../ImageWithFallback';
-import { getEventMode, getRegistrationDeadline, hasValue } from './eventDetailsUtils';
+import {
+  getEventMode,
+  getRegistrationDeadline,
+  getUnifiedEventDate,
+  getUnifiedEventTime,
+  hasValue,
+} from './eventDetailsUtils';
 
 interface EventHeroSectionProps {
   event: CampusEvent;
@@ -94,7 +100,7 @@ const EventHeroSection: React.FC<EventHeroSectionProps> = ({
           </div>
           <div className="flex items-center gap-2 bg-slate-50 px-3 py-2 rounded-xl border border-slate-200/70">
             <CalendarDays className="w-4 h-4 text-blue-600 shrink-0" />
-            <span>{event.date} · {isPast ? 'Concluded' : event.time}</span>
+            <span>{getUnifiedEventDate(event)} · {getUnifiedEventTime(event, isPast)}</span>
           </div>
           <div className={`flex items-center gap-2 px-3 py-2 rounded-xl border ${
             isPast

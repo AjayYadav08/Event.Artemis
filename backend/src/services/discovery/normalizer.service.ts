@@ -163,10 +163,17 @@ export function normalizeAndValidateEvent(
   const regStartParsed = parseFlexibleDate(raw.registrationStart);
   const endParsed = parseFlexibleDate(raw.eventEndDate);
 
-  // Use parsed eventDate or safe future placeholder flagged with warning
+  // Use parsed eventDate, or infer from timeline[0], or safe future placeholder at 10:00 AM UTC
   let eventDateObj = startParsed.date;
+  if (!eventDateObj && Array.isArray(raw.timeline) && raw.timeline.length > 0) {
+    const timelineParsed = parseFlexibleDate(raw.timeline[0]?.time);
+    if (timelineParsed.date) {
+      eventDateObj = timelineParsed.date;
+    }
+  }
   if (!eventDateObj) {
     eventDateObj = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
+    eventDateObj.setUTCHours(10, 0, 0, 0);
     validationWarnings.push('Event start date could not be extracted; requires review before publishing');
   }
 

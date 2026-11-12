@@ -42,27 +42,35 @@ export const formatIsoDate = (iso?: string | null): string | null => {
   if (!hasValue(iso)) return null;
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return null;
-  return d.toLocaleDateString('en-IN', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-  });
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  return `${d.getUTCDate()} ${months[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
+};
+
+export const getUnifiedEventDate = (event: CampusEvent): string => {
+  return event.date || `${event.dayOfMonth} May 2026`;
+};
+
+export const getUnifiedEventTime = (event: CampusEvent, isPast = false): string => {
+  if (isPast) return 'Concluded';
+  return event.time || '10:00 AM';
 };
 
 export const getRegistrationDeadline = (event: CampusEvent, isPast: boolean): string => {
   if (isPast) return 'Registration Closed';
-  if (event.registrationWindow && event.registrationWindow.includes('-')) {
-    return event.registrationWindow.split('-')[1].trim();
-  }
-  if (event.registrationWindow) return event.registrationWindow;
   const isoFormatted = formatIsoDate(event.registrationDeadline);
   if (isoFormatted) return isoFormatted;
+
+  if (event.registrationWindow) {
+    const win = event.registrationWindow.replace(/^closes\s+/i, '').trim();
+    if (win.includes('-')) return win.split('-')[1].trim();
+    return win;
+  }
 
   const day = event.dayOfMonth;
   const month = event.date ? event.date.split(' ')[1] || 'May' : 'May';
   const year = event.date ? event.date.split(' ')[2] || '2026' : '2026';
   const deadlineDay = Math.max(1, day - 1);
-  return `${deadlineDay} ${month} ${year} · 11:59 PM`;
+  return `${deadlineDay} ${month} ${year}`;
 };
 
 export const getOfficialUrl = (event: CampusEvent): string | null => {

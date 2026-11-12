@@ -1,6 +1,12 @@
 import React from 'react';
 import { ArrowRight, Trophy, Terminal, Palette, Mic2, Zap, Heart, ThumbsDown } from 'lucide-react';
 import { CampusEvent } from '../types';
+import {
+  getEventMode,
+  getRegistrationDeadline,
+  getUnifiedEventDate,
+  getUnifiedEventTime,
+} from '../Details/eventDetailsUtils';
 
 interface EventCardProps {
   event: CampusEvent;
@@ -15,32 +21,8 @@ interface EventCardProps {
   markNotInterested?: (id: string) => void;
 }
 
-const getEventMode = (event: CampusEvent): 'Online' | 'Offline' | 'Hybrid' => {
-  if (event.format?.type) return event.format.type;
-  const loc = (event.location || '').toLowerCase();
-  if (loc.includes('online') || loc.includes('virtual') || loc.includes('meet') || loc.includes('zoom')) return 'Online';
-  return 'Offline';
-};
-
 const getFormattedEventDate = (event: CampusEvent): string => {
-  const datePart = event.date || `${event.dayOfMonth} May 2026`;
-  const timePart = event.time || '10:00 AM';
-  return `${datePart} . ${timePart}`;
-};
-
-const getRegistrationDeadline = (event: CampusEvent, isPast: boolean): string => {
-  if (isPast) return 'Registration Closed';
-  if (event.registrationWindow && event.registrationWindow.includes('-')) {
-    return event.registrationWindow.split('-')[1].trim();
-  }
-  if (event.registrationWindow) return event.registrationWindow;
-
-  // Derives clean ending date and time
-  const day = event.dayOfMonth;
-  const month = event.date ? event.date.split(' ')[1] || 'May' : 'May';
-  const year = event.date ? event.date.split(' ')[2] || '2026' : '2026';
-  const deadlineDay = Math.max(1, day - 1);
-  return `${deadlineDay} ${month} ${year} . 11:59 PM`;
+  return `${getUnifiedEventDate(event)} · ${getUnifiedEventTime(event, false)}`;
 };
 
 const EventCard: React.FC<EventCardProps> = ({
