@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { eventsController } from '../controllers/events.controller';
+import { eventSourcesController } from '../controllers/eventSources.controller';
 import {
   authenticate,
   optionalAuthenticate,
@@ -48,6 +49,9 @@ router.delete(
 router.post('/:id/interest', authenticate, eventsController.addInterest);
 router.delete('/:id/interest', authenticate, eventsController.removeInterest);
 router.post('/:id/register', authenticate, eventsController.registerForEvent);
+
+router.get('/:id/sources', authenticate, requireRole('ADMIN', 'ORGANIZER'), eventSourcesController.getEventSources);
+router.get('/:id/change-history', authenticate, requireRole('ADMIN', 'ORGANIZER'), eventSourcesController.getEventChangeHistory);
 
 export default router;
 

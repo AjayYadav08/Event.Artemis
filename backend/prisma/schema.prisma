@@ -81,6 +81,67 @@ enum MessageType {
   SYSTEM
 }
 
+enum SourceType {
+  SINGLE_EVENT
+  COLLEGE_WEBSITE
+  EVENT_LISTING
+  OTHER
+}
+
+enum MonitoringStatus {
+  ACTIVE
+  PAUSED
+  ERROR
+}
+
+enum SyncStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  UPDATED
+  NO_CHANGES
+  NEEDS_REVIEW
+  PARTIALLY_SUCCESSFUL
+  FAILED
+  PAUSED
+}
+
+enum ExtractionMethod {
+  STRUCTURED_DATA
+  STATIC_HTML
+  DYNAMIC_BROWSER
+  AI_EXTRACTION
+  PDF_DOCUMENT
+}
+
+enum DiscoveredEventStatus {
+  PENDING_REVIEW
+  APPROVED
+  REJECTED
+  MERGED_DUPLICATE
+  NEEDS_REVIEW
+}
+
+enum FieldOwnership {
+  AUTO
+  MANUAL
+  VERIFIED
+  NEEDS_REVIEW
+}
+
+enum JobType {
+  DISCOVER
+  SYNC
+}
+
+enum JobStatus {
+  QUEUED
+  RUNNING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
 model User {
   id           String   @id @default(uuid())
   name         String
@@ -107,6 +168,8 @@ model User {
   uploadedAttachments ChatAttachment[]
   givenRatings       TeamRating[]        @relation("RatingGiver")
   receivedRatings    TeamRating[]        @relation("RatingReceiver")
+  eventSources       EventSource[]       @relation("SourceCreator")
+  reviewedDiscoveries DiscoveredEvent[]  @relation("DiscoveryReviewer")
 
   @@index([email])
 }
@@ -188,9 +251,15 @@ model Event {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  interests     EventInterest[]
-  registrations EventRegistration[]
-  fieldHistory  EventFieldHistory[]
+  interests          EventInterest[]
+  registrations      EventRegistration[]
+  fieldHistory       EventFieldHistory[]
+  sourcePages        EventSourcePage[]
+  fieldSources       EventFieldSource[]
+  syncHistory        EventSyncHistory[]
+  fieldChangeHistory EventFieldChangeHistory[]
+  approvedFrom       DiscoveredEvent[]   @relation("ApprovedEvent")
+  duplicateMatches   DiscoveredEvent[]   @relation("DuplicateEvent")
 
   @@index([category])
   @@index([type])
@@ -376,5 +445,205 @@ model ChatAttachment {
 
   @@index([messageId])
   @@index([teamId])
+}
+
+model EventSource {
+  id                 String           @id @default(uuid())
+  name               String
+  sourceUrl          String
+  sourceType         SourceType       @default(SINGLE_EVENT)
+  description        String?
+  monitoringEnabled  Boolean          @default(true)
+  monitoringStatus   MonitoringStatus @default(ACTIVE)
+  syncIntervalHours  Int              @default(12)
+  maxCrawlDepth      Int              @default(2)
+  maxPagesPerCycle   Int              @default(50)
+  extractionOptions  Json             @default("{}")
+  lastCheckedAt      DateTime?
+  lastSuccessfulAt   DateTime?
+  nextCheckAt        DateTime?
+  lastSyncStatus     SyncStatus       @default(PENDING)
+  lastError          String?
+  etag               String?
+  lastModified       String?
+  contentHash        String?
+  aiRequestsUsed     Int              @default(0)
+  createdById        String?
+  createdBy          User?            @relation("SourceCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+
+  pages              EventSourcePage[]
+  discoveredEvents   DiscoveredEvent[]
+  syncHistory        EventSyncHistory[]
+  jobs               SyncJob[]
+  notifications      AdminNotification[]
+
+  @@index([monitoringEnabled, nextCheckAt])
+  @@index([sourceUrl])
+}
+
+model EventSourcePage {
+  id               String           @id @default(uuid())
+  sourceId         String
+  source           EventSource      @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  eventId          String?
+  event            Event?           @relation(fields: [eventId], references: [id], onDelete: SetNull)
+  pageUrl          String
+  pageType         String           @default("DETAIL")
+  externalEventId  String?
+  contentHash      String?
+  etag             String?
+  lastModified     String?
+  lastCheckedAt    DateTime?
+  lastSuccessfulAt DateTime?
+  nextCheckAt      DateTime?
+  extractionMethod ExtractionMethod?
+  extractionStatus SyncStatus       @default(PENDING)
+  lastError        String?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  discoveredEvents   DiscoveredEvent[]
+  fieldSources       EventFieldSource[]
+  fieldChangeHistory EventFieldChangeHistory[]
+
+  @@unique([sourceId, pageUrl])
+  @@index([eventId])
+  @@index([nextCheckAt])
+}
+
+model DiscoveredEvent {
+  id                   String                @id @default(uuid())
+  sourceId             String
+  source               EventSource           @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  sourcePageId         String?
+  sourcePage           EventSourcePage?      @relation(fields: [sourcePageId], references: [id], onDelete: SetNull)
+  approvedEventId      String?
+  approvedEvent        Event?                @relation("ApprovedEvent", fields: [approvedEventId], references: [id], onDelete: SetNull)
+  duplicateOfEventId   String?
+  duplicateOfEvent     Event?                @relation("DuplicateEvent", fields: [duplicateOfEventId], references: [id], onDelete: SetNull)
+  duplicateConfidence  Float?
+  duplicateSignals     Json                  @default("[]")
+  status               DiscoveredEventStatus @default(PENDING_REVIEW)
+  extractionMethod     ExtractionMethod      @default(STATIC_HTML)
+  confidence           Float                 @default(0.5)
+  title                String
+  sourcePageUrl        String
+  normalizedPayload    Json
+  rawExtracted         Json                  @default("{}")
+  fieldProvenance      Json                  @default("{}")
+  extractedFields      String[]              @default([])
+  missingFields        String[]              @default([])
+  validationWarnings   String[]              @default([])
+  reviewedById         String?
+  reviewedBy           User?                 @relation("DiscoveryReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  reviewedAt           DateTime?
+  rejectionReason      String?
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+
+  @@index([sourceId, status])
+  @@index([status])
+  @@index([sourcePageUrl])
+}
+
+model EventFieldSource {
+  id                   String           @id @default(uuid())
+  eventId              String
+  event                Event            @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  fieldName            String
+  sourcePageId         String?
+  sourcePage           EventSourcePage? @relation(fields: [sourcePageId], references: [id], onDelete: SetNull)
+  extractedValue       Json?
+  rawValue             String?
+  confidence           Float            @default(0.8)
+  ownership            FieldOwnership   @default(AUTO)
+  isManuallyOverridden Boolean          @default(false)
+  verifiedAt           DateTime?
+  updatedAt            DateTime         @updatedAt
+
+  @@unique([eventId, fieldName])
+  @@index([sourcePageId])
+}
+
+model EventSyncHistory {
+  id               String      @id @default(uuid())
+  sourceId         String
+  source           EventSource @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  eventId          String?
+  event            Event?      @relation(fields: [eventId], references: [id], onDelete: SetNull)
+  startedAt        DateTime    @default(now())
+  completedAt      DateTime?
+  status           SyncStatus  @default(PROCESSING)
+  pagesScanned     Int         @default(0)
+  eventsDiscovered Int         @default(0)
+  eventsUpdated    Int         @default(0)
+  fieldsUpdated    Int         @default(0)
+  aiCallsUsed      Int         @default(0)
+  errorMessage     String?
+  summary          Json        @default("{}")
+
+  @@index([sourceId, startedAt])
+  @@index([eventId])
+}
+
+model EventFieldChangeHistory {
+  id             String           @id @default(uuid())
+  eventId        String
+  event          Event            @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  fieldName      String
+  previousValue  Json?
+  newValue       Json?
+  sourcePageId   String?
+  sourcePage     EventSourcePage? @relation(fields: [sourcePageId], references: [id], onDelete: SetNull)
+  confidence     Float?
+  applied        Boolean          @default(true)
+  requiresReview Boolean          @default(false)
+  reviewedById   String?
+  changedAt      DateTime         @default(now())
+
+  @@index([eventId, changedAt])
+}
+
+model SyncJob {
+  id              String      @id @default(uuid())
+  sourceId        String
+  source          EventSource @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  jobType         JobType     @default(SYNC)
+  status          JobStatus   @default(QUEUED)
+  priority        Int         @default(0)
+  attempts        Int         @default(0)
+  maxAttempts     Int         @default(3)
+  runAt           DateTime    @default(now())
+  lockedAt        DateTime?
+  lockedBy        String?
+  startedAt       DateTime?
+  completedAt     DateTime?
+  progress        Int         @default(0)
+  progressMessage String?
+  result          Json?
+  error           String?
+  triggeredById   String?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  @@index([status, runAt])
+  @@index([sourceId, status])
+}
+
+model AdminNotification {
+  id            String       @id @default(uuid())
+  sourceId      String?
+  source        EventSource? @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  eventId       String?
+  type          String
+  title         String
+  message       String
+  metadata      Json         @default("{}")
+  readByUserIds String[]     @default([])
+  createdAt     DateTime     @default(now())
+
+  @@index([createdAt])
 }
 

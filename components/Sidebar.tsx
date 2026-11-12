@@ -9,19 +9,22 @@ import {
   FileCheck2,
   ShieldAlert,
   HelpCircle,
-  PartyPopper
+  PartyPopper,
+  Globe
 } from 'lucide-react';
 
 interface SidebarProps {
   activeTab: string;
   setActiveTab: (tab: string) => void;
   unopenedEventsCount?: number;
+  userRole?: string;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ 
   activeTab, 
   setActiveTab, 
-  unopenedEventsCount = 0 
+  unopenedEventsCount = 0,
+  userRole
 }) => {
   const subjects = [
     'ADA - D',
@@ -102,6 +105,20 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-pulse shadow-xs shrink-0" />
             )}
           </button>
+
+          {(userRole === 'ADMIN' || userRole === 'ORGANIZER') && (
+            <button
+              onClick={() => setActiveTab('EventSources')}
+              className={`mt-1 flex items-center w-full px-3.5 py-2.5 rounded-xl transition-colors cursor-pointer ${
+                activeTab === 'EventSources'
+                  ? 'bg-[#EBF3FF] text-[#1D4ED8] font-bold'
+                  : 'text-slate-800 hover:bg-slate-50 hover:text-slate-950 font-semibold'
+              }`}
+            >
+              <Globe className={`w-5 h-5 mr-3.5 shrink-0 ${activeTab === 'EventSources' ? 'text-[#1D4ED8]' : 'text-slate-700'}`} />
+              <span className="text-[15px] truncate">Event Sources</span>
+            </button>
+          )}
         </div>
 
         {/* Scorecard - Presentation Only */}

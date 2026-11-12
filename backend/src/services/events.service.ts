@@ -392,6 +392,27 @@ export const eventsService = {
       });
       if (historyEntries.length > 0) {
         await tx.eventFieldHistory.createMany({ data: historyEntries });
+        for (const entry of historyEntries) {
+          await tx.eventFieldSource.upsert({
+            where: { eventId_fieldName: { eventId: id, fieldName: entry.fieldName } },
+            create: {
+              eventId: id,
+              fieldName: entry.fieldName,
+              extractedValue: entry.newValue as Prisma.InputJsonValue,
+              confidence: 1.0,
+              ownership: 'MANUAL',
+              isManuallyOverridden: true,
+              verifiedAt: new Date(),
+            },
+            update: {
+              extractedValue: entry.newValue as Prisma.InputJsonValue,
+              confidence: 1.0,
+              ownership: 'MANUAL',
+              isManuallyOverridden: true,
+              verifiedAt: new Date(),
+            },
+          });
+        }
       }
       return ev;
     });

@@ -7,6 +7,7 @@ import { MainDashboard } from './components/MainDashboard';
 import { RightPanel } from './components/RightPanel';
 import { FullCalendarPage } from './components/FullCalendarPage';
 import { EventsPage, CampusEvent } from './components/EventsPage';
+import { EventSourcesAdminPage } from './components/events/AdminSources/EventSourcesAdminPage';
 import { LoginPage } from './components/LoginPage';
 import { MessageSquareWarning, Ghost, ArrowRight, X, Radio, BellRing, Layout } from 'lucide-react';
 
@@ -75,11 +76,20 @@ const MainApp: React.FC = () => {
 
   useEffect(() => {
     if (currentUser) {
-      connectSocket();
+      const sock = connectSocket();
+      const handleAdminNotif = () => {
+        qc.invalidateQueries({ queryKey: ['events'] });
+        qc.invalidateQueries({ queryKey: ['event-sources'] });
+        qc.invalidateQueries({ queryKey: ['admin-notifications'] });
+      };
+      sock?.on('admin:notification', handleAdminNotif);
+      return () => {
+        sock?.off('admin:notification', handleAdminNotif);
+      };
     } else {
       disconnectSocket();
     }
-  }, [currentUser]);
+  }, [currentUser, qc]);
 
   const handleLogout = async () => {
     await authService.logout();
@@ -468,6 +478,8 @@ const MainApp: React.FC = () => {
             onTeamsViewToggle={setIsTeamsViewOpen}
           />
         );
+      case 'EventSources':
+        return <EventSourcesAdminPage />;
       default:
         return <MainDashboard />;
     }
@@ -636,6 +648,7 @@ const MainApp: React.FC = () => {
             activeTab={activeTab} 
             setActiveTab={handleTabChange} 
             unopenedEventsCount={unopenedEventsCount}
+            userRole={currentUser.role}
           />
         )}
         
